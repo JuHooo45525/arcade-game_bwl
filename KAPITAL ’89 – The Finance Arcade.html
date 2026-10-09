@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>KAPITAL ’89 – The Finance Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04140d;--bg2:#08201a;--panel:#0d2c21;--panel2:#123a2b;--line:#2a6a4c;
+  --term:#5cf09a;--text:#ecf6ef;--muted:#b0cdbb;--gold:#f2c14e;--gold2:#ffd977;
+  --up:#56e293;--down:#ff7a7a;--upbg:#0f4029;--downbg:#421818;
+  --paper:#f3f0e2;--paper2:#dfe9d3;--ink:#1c1f1a;--lcdbg:#a9bd96;--lcdink:#18240f;
+  --pix:"Press Start 2P",ui-monospace,Menlo,Consolas,monospace;
+  --lcd:"VT323",ui-monospace,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);
+}
+/* Das Spiel ist bewusst dunkel (Terminal-Optik) – in beiden Modi dieselben Tokens */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#04140d;--bg2:#08201a;--panel:#0d2c21;--panel2:#123a2b;--line:#2a6a4c;--term:#5cf09a;--text:#ecf6ef;--muted:#b0cdbb;--gold:#f2c14e;}
+}
+:root[data-theme="dark"]{--bg:#04140d;--bg2:#08201a;--panel:#0d2c21;--panel2:#123a2b;--line:#2a6a4c;--term:#5cf09a;--text:#ecf6ef;--muted:#b0cdbb;--gold:#f2c14e;}
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;background:var(--bg);scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:18px;line-height:1.5;-webkit-text-size-adjust:100%;touch-action:manipulation;overflow:hidden;-webkit-tap-highlight-color:transparent}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:60;background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.14) 2px 3px)}
+button{font:inherit;color:inherit;touch-action:manipulation}
+#app{height:100%;display:flex;flex-direction:column}
+#hud{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--bg2);border-bottom:2px solid var(--line)}
+#hud[hidden]{display:none}
+.hud-l,.hud-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mini{font-family:var(--pix);font-size:11px;color:var(--gold);letter-spacing:1px}
+.hchip{font-family:var(--lcd);font-size:22px;line-height:1;padding:6px 10px;border:2px solid var(--line);border-radius:4px;background:#021009;color:var(--term);white-space:nowrap}
+.hchip b{color:var(--gold);font-weight:normal}
+#main{flex:1;min-height:0;display:flex}
+#scr{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px}
+#side{display:none;flex:0 0 290px;width:290px;border-left:2px solid var(--line);background:var(--bg2);overflow-y:auto;padding:16px}
+@media (orientation:landscape) and (min-width:980px){body.playing #side{display:block}body.playing .hide-wide{display:none}}
+/* Buttons */
+.btn{min-height:56px;padding:14px 18px;border:2px solid var(--term);background:transparent;color:var(--term);font-family:var(--pix);font-size:12px;line-height:1.4;border-radius:4px;cursor:pointer;text-align:center}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#1d1500}
+.btn.ghost{border-color:var(--line);color:var(--muted)}
+.btn.sm{min-height:48px;padding:10px 12px;font-size:10px}
+.btn[disabled]{opacity:.38;cursor:default}
+.btn:focus-visible,.opt:focus-visible,.mitem:focus-visible,.ocard:focus-visible,.gapb:focus-visible,.tfb button:focus-visible{outline:3px solid var(--gold2);outline-offset:2px}
+/* Startbildschirm */
+.center{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:12px 0}
+.cab{width:100%;max-width:780px}
+.pre{font-family:var(--lcd);font-size:24px;color:var(--muted);margin:0 0 12px}
+.logo{font-family:var(--pix);font-size:clamp(30px,7vw,64px);line-height:1.15;margin:0;color:var(--gold);text-shadow:0 0 14px rgba(242,193,78,.45),4px 4px 0 #6b4b00}
+.logo.sm{font-size:clamp(20px,4vw,34px)}
+.subtitle{font-family:var(--pix);font-size:clamp(11px,1.8vw,15px);color:var(--term);margin:16px 0 22px;text-shadow:0 0 8px rgba(92,240,154,.5)}
+.coin{font-family:var(--lcd);font-size:28px;color:var(--gold2);margin:20px 0 6px}
+.menu{display:flex;flex-direction:column;gap:12px;max-width:420px;margin:22px auto 0}
+.foot{font-size:15px;color:var(--muted);max-width:560px;margin:26px auto 0}
+/* Ticker */
+.ticker{overflow:hidden;white-space:nowrap;border-top:2px solid var(--line);border-bottom:2px solid var(--line);background:#010a06;color:var(--term);font-family:var(--lcd);font-size:24px;line-height:1.3;padding:4px 0}
+.ticker span{display:inline-block;padding-left:100%;animation:tick 55s linear infinite}
+.ticker .dn{color:var(--down)}
+@keyframes tick{to{transform:translateX(-100%)}}
+/* Task */
+.task{max-width:900px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+.thead{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{font-family:var(--pix);font-size:9px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:3px;color:var(--muted);background:var(--bg2)}
+.chip.star{color:#9cc6ff;border-color:#4a76b8}
+.chip.afb{color:var(--gold)}
+.q{font-size:21px;line-height:1.4;font-weight:650;margin:4px 0 14px}
+.sub{font-size:17px;color:var(--muted);margin:-6px 0 12px}
+.stagelbl{font-family:var(--pix);font-size:10px;color:var(--term);margin:4px 0 8px}
+.recap{border-left:4px solid var(--up);padding:6px 12px;margin:0 0 12px;background:var(--upbg);font-size:16px}
+.opts{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:700px){.opts.two{grid-template-columns:1fr 1fr}}
+.opt{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;width:100%;min-height:60px;text-align:left;padding:12px 16px;border:2px solid var(--line);border-radius:6px;background:var(--panel);font-size:18px;line-height:1.4;cursor:pointer}
+.opt.sel{border-color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold);background:var(--panel2)}
+.opt.ok{border-color:var(--up);background:var(--upbg)}
+.opt.bad{border-color:var(--down);background:var(--downbg)}
+.opt[disabled]{cursor:default}
+.mk{font-family:var(--pix);font-size:9px;letter-spacing:.5px}
+.ok>.mk,.ok .mk{color:var(--up)} .bad>.mk,.bad .mk{color:var(--down)}
+.count{font-family:var(--lcd);font-size:24px;color:var(--gold);margin:0 0 8px}
+/* Zuordnung */
+.cats{position:sticky;top:-16px;z-index:5;background:var(--bg);padding:10px 0 10px;margin:0 0 6px;display:flex;flex-wrap:wrap;gap:8px;border-bottom:2px dashed var(--line)}
+.cat{flex:1 1 150px;min-height:54px;padding:10px 12px;border:2px solid var(--gold);border-radius:6px;background:#1d1a08;color:var(--gold2);font-weight:650;font-size:16px;cursor:pointer}
+.cat[disabled]{opacity:.4;cursor:default}
+.hintline{font-size:15px;color:var(--muted);margin:0 0 4px;width:100%}
+.mlist{display:flex;flex-direction:column;gap:8px}
+.mitem{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;width:100%;min-height:58px;padding:12px 14px;border:2px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;font-size:17px}
+.mitem.cur{border-color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold)}
+.mitem.ok{border-color:var(--up);background:var(--upbg)}
+.mitem.bad{border-color:var(--down);background:var(--downbg)}
+.tag{font-family:var(--pix);font-size:9px;line-height:1.6;padding:4px 6px;border-radius:3px;background:#021009;color:var(--term)}
+.tag.open{color:var(--muted)}
+/* Reihenfolge */
+.ocard{display:flex;align-items:center;gap:14px;text-align:left;width:100%;min-height:60px;padding:10px 14px;border:2px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;font-size:17px}
+.ocard .num{flex:0 0 44px;height:44px;display:flex;align-items:center;justify-content:center;font-family:var(--lcd);font-size:30px;background:var(--lcdbg);color:var(--lcdink);border-radius:4px}
+.ocard.on{border-color:var(--gold)}
+.ocard.ok{border-color:var(--up);background:var(--upbg)}
+.ocard.bad{border-color:var(--down);background:var(--downbg)}
+/* Richtig/Falsch */
+.tfrow{border:2px solid var(--line);border-radius:6px;background:var(--panel);padding:12px 14px;margin-bottom:10px}
+.tfrow p{margin:0 0 10px;font-size:18px}
+.tfrow.ok{border-color:var(--up)} .tfrow.bad{border-color:var(--down)}
+.tfb{display:flex;gap:10px}
+.tfb button{flex:1;min-height:52px;border:2px solid var(--line);border-radius:6px;background:var(--bg2);font-family:var(--pix);font-size:10px;cursor:pointer}
+.tfb button.sel{border-color:var(--gold);color:var(--gold2);box-shadow:inset 0 0 0 2px var(--gold)}
+.tfb button[disabled]{cursor:default}
+.why{font-size:15px;color:var(--muted);margin-top:8px}
+/* Lückentext */
+.gaptext{font-size:20px;line-height:2.4;background:var(--panel);border:2px solid var(--line);border-radius:6px;padding:12px 16px}
+.gapb{display:inline-block;min-height:44px;min-width:110px;padding:2px 12px;margin:0 2px;border:2px dashed var(--gold);border-radius:4px;background:#1d1a08;color:var(--gold2);font-weight:650;cursor:pointer;line-height:1.8}
+.gapb.act{border-style:solid;box-shadow:0 0 0 3px rgba(242,193,78,.35)}
+.gapb.ok{border:2px solid var(--up);background:var(--upbg);color:var(--text)}
+.gapb.bad{border-style:solid;border-color:var(--down);background:var(--downbg);color:var(--text)}
+.gopts{margin-top:12px}
+.gopts .lbl{margin-bottom:8px}
+/* Feedback */
+.fb{border-left:6px solid var(--line);background:var(--panel);padding:12px 16px;margin:14px 0 4px;border-radius:0 6px 6px 0}
+.fb.up{border-color:var(--up)} .fb.down{border-color:var(--down)}
+.fb h3{font-family:var(--pix);font-size:12px;margin:0 0 8px;line-height:1.5}
+.fb.up h3{color:var(--up)} .fb.down h3{color:var(--down)}
+.fb p{margin:0 0 6px;font-size:17px}
+.actions{position:sticky;bottom:-16px;margin-top:auto;padding:14px 0 18px;display:flex;flex-wrap:wrap;gap:10px;background:linear-gradient(rgba(4,20,13,0),var(--bg) 30%)}
+.actions .btn{flex:1 1 180px}
+/* Papier, Fax, LCD */
+.paper{position:relative;background:var(--paper);color:var(--ink);padding:18px 30px 18px 34px;border-radius:2px;font-size:17px;line-height:1.55;background-image:repeating-linear-gradient(to bottom,var(--paper) 0 26px,var(--paper2) 26px 52px)}
+.paper::before,.paper::after{content:"";position:absolute;top:0;bottom:0;width:16px;background:radial-gradient(circle at 8px 13px,var(--bg) 4px,transparent 5px) repeat-y;background-size:16px 26px}
+.paper::before{left:4px}.paper::after{right:4px}
+.paper h3{font-family:var(--pix);font-size:12px;line-height:1.6;margin:0 0 10px}
+.paper p{margin:0 0 10px}
+.paper table{border-collapse:collapse;width:100%;font-size:16px}
+.paper td{border-bottom:1px solid #b9c4ac;padding:4px 6px}
+.paper td:last-child{text-align:right;font-family:var(--lcd);font-size:22px}
+.faxhead{font-family:var(--lcd);font-size:20px;border-bottom:2px dashed #7c8a70;margin-bottom:12px;padding-bottom:6px}
+.calc{background:#22272b;border:2px solid #3b4247;border-radius:12px;padding:12px;margin:0 0 14px}
+.lcd{background:var(--lcdbg);color:var(--lcdink);font-family:var(--lcd);font-size:27px;line-height:1.2;padding:10px 14px;border:3px solid #2b3a2a;border-radius:6px;box-shadow:inset 0 0 12px rgba(0,0,0,.35);word-break:break-word}
+.lcd.data{font-size:23px;margin-top:8px;background:#c1d0ae}
+.lcd.big{font-size:44px;text-align:center}
+.lbl{font-family:var(--pix);font-size:9px;line-height:1.6;color:var(--muted);margin:0 0 6px}
+/* Übersicht */
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:12px 0}
+.lvcard{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;min-height:130px;padding:14px;border:2px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer}
+.lvcard .no{font-family:var(--pix);font-size:10px;color:var(--gold)}
+.lvcard .tt{font-family:var(--pix);font-size:12px;line-height:1.5}
+.lvcard .ss{font-size:15px;color:var(--muted)}
+.lvcard .st{margin-top:auto;font-family:var(--lcd);font-size:20px;color:var(--term)}
+.lvcard.done{border-color:var(--up)}
+.lvcard.bonus{border-color:#4a76b8}
+.lvcard[disabled]{opacity:.42;cursor:default}
+.h2{font-family:var(--pix);font-size:clamp(14px,2.4vw,20px);color:var(--gold);line-height:1.5;margin:6px 0 10px}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
+.rowbtns .btn{flex:1 1 200px}
+/* Pfadwahl */
+.pathcard{display:block;width:100%;text-align:left;padding:18px;border:3px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;margin-bottom:12px}
+.pathcard.g{border-color:var(--up)} .pathcard.b{border-color:#5d8fd6}
+.pathcard h3{font-family:var(--pix);font-size:13px;margin:0 0 10px}
+.pathcard.g h3{color:var(--up)} .pathcard.b h3{color:#9cc6ff}
+.pathcard p{margin:0;font-size:17px}
+/* Ich-kann */
+.canrow{border-bottom:1px solid var(--line);padding:10px 0}
+.canrow p{margin:0 0 8px;font-size:17px}
+.canb{display:flex;gap:8px}
+.canb button{flex:1;min-height:50px;border:2px solid var(--line);border-radius:6px;background:var(--panel);font-family:var(--pix);font-size:11px;cursor:pointer}
+.canb button.sel{border-color:var(--gold);color:var(--gold2);box-shadow:inset 0 0 0 2px var(--gold)}
+table.rep{width:100%;border-collapse:collapse;font-size:16px;margin:8px 0 16px}
+table.rep th,table.rep td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+table.rep th{font-family:var(--pix);font-size:9px;color:var(--muted);font-weight:normal}
+.tup{color:var(--up)}
+.tablewrap{overflow-x:auto}
+/* Seitenleiste */
+.sbox{border:2px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:12px;background:var(--panel)}
+.ladder{display:flex;flex-wrap:wrap;gap:4px}
+.ladder span{font-family:var(--lcd);font-size:20px;padding:2px 6px;border:1px solid var(--line);border-radius:3px;color:var(--muted)}
+.ladder span.on{background:var(--gold);color:#1d1500;border-color:var(--gold)}
+.sbox p{margin:0;font-size:16px}
+.sbox .lbl{font-size:9px;margin:0 0 8px}
+/* Overlay */
+#ov{position:fixed;inset:0;z-index:40;display:none;background:rgba(2,10,6,.94);overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 20px) 16px calc(env(safe-area-inset-bottom,0px) + 20px)}
+#ov.open{display:block}
+.ovbox{max-width:760px;margin:0 auto;background:var(--bg2);border:2px solid var(--term);border-radius:8px;padding:20px}
+.ovbox .menu{max-width:none}
+.helplist{font-size:17px;padding-left:20px}
+.helplist li{margin-bottom:8px}
+/* Glitch */
+.glitch{animation:gl .32s steps(3) 1}
+@keyframes gl{0%{transform:translate(3px,0);filter:hue-rotate(50deg)}50%{transform:translate(-3px,1px)}100%{transform:none;filter:none}}
+@media (prefers-reduced-motion: reduce){
+  .ticker{white-space:normal}
+  .ticker span{animation:none;padding:0 12px;display:block}
+  .glitch{animation:none}
+  *{scroll-behavior:auto!important}
+}
+@media (max-width:520px){.q{font-size:19px}.paper{padding:14px 22px 14px 26px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud" hidden></header>
+  <div id="main"><main id="scr" aria-live="polite"></main><aside id="side" aria-label="Status"></aside></div>
+</div>
+<div id="ov" role="dialog" aria-modal="true"></div>
+<script>
+"use strict";
+/* ================= Hilfsfunktionen ================= */
+const $=s=>document.querySelector(s);
+const scr=$("#scr"),side=$("#side"),hud=$("#hud"),ov=$("#ov");
+const RM=!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function idx(n){return Array.from({length:n},(_,i)=>i);}
+let busy=false;function lock(ms){busy=true;setTimeout(()=>{busy=false;},ms||380);}
+
+/* ================= Tippkarten ================= */
+const TIPS={
+ L1:{h:"TIPPKARTE · BILANZ",b:"<p><b>Aktivseite</b> = Mittelverwendung: Was besitzt das Unternehmen?<br><b>Passivseite</b> = Mittelherkunft: Woher kommt das Geld?</p><p><b>Anlagevermögen</b> bleibt lange im Betrieb (Gebäude, Maschinen, Fahrzeuge).<br><b>Umlaufvermögen</b> verändert sich laufend (Vorräte, Bargeld, Bankguthaben, offene Kundenrechnungen).</p>"},
+ L2:{h:"TIPPKARTE · INVESTITIONSARTEN",b:"<p><b>Erstinvestition:</b> der allererste Start.<br><b>Erweiterung:</b> mehr als vorher.<br><b>Rationalisierung:</b> günstiger oder effizienter als vorher.<br><b>Ersatz:</b> genauso wie vorher, nur neu.</p>"},
+ L3:{h:"TIPPKARTE · FINANZIERUNG",b:"<p>Frage dich: <b>Wie lange</b> wird das Geld gebraucht? <b>Woher</b> kommt es – von außen (Bank, Lieferant, neue Gesellschafter) oder aus dem Unternehmen selbst (Gewinn)?</p><p>Kurzfristig: Lieferantenkredit, Kontokorrentkredit<br>Langfristig: Darlehen<br>Nutzen statt kaufen: Leasing<br>Eigener Gewinn: Selbstfinanzierung<br>Neue Gesellschafter: Beteiligungsfinanzierung</p>"},
+ L4:{h:"TIPPKARTE · FORMELN",b:"<p>Eigenkapitalquote = Eigenkapital × 100 : Gesamtkapital<br>Anlagendeckung I = Eigenkapital × 100 : Anlagevermögen<br>Anlagendeckung II = (Eigenkapital + langfristiges Fremdkapital) × 100 : Anlagevermögen<br>Eigenkapitalrentabilität = Gewinn × 100 : Eigenkapital<br>Umsatzrentabilität = Gewinn × 100 : Umsatz</p><p>Erst mal 100 rechnen, dann teilen. Das Ergebnis ist eine Prozentzahl.</p>"},
+ T1:{h:"TIPPKARTE T1 · URSACHEN ZUORDNEN",b:"<p>Liegt das Problem bei den <b>Menschen</b> (Personal, Führung, Eigentümer)? → personell<br>Beim <b>Produkt, bei Kosten oder Anschaffungen</b>? → sachlich<br>Bei <b>Abläufen und Planung</b> im Betrieb? → organisatorisch<br><b>Außerhalb</b> des Unternehmens (Markt, Konkurrenz, Preise, Umfeld)? → außerbetrieblich</p>"},
+ T2:{h:"TIPPKARTE T2 · LIQUIDITÄT",b:"<p>Beispiel: Zahlungsmittel 5.000 €, Forderungen 10.000 €, kurzfristige Verbindlichkeiten 20.000 €</p><p>Liquidität 1. Grades = 5.000 × 100 : 20.000 = <b>25 %</b><br>→ Mit dem Geld auf dem Konto kann ein Viertel der kurzfristigen Schulden sofort bezahlt werden.</p><p>Liquidität 2. Grades = (5.000 + 10.000) × 100 : 20.000 = <b>75 %</b><br>→ Selbst wenn alle Kunden zahlen, reicht es nur für drei Viertel.</p>"},
+ T3:{h:"TIPPKARTE T3 · INSOLVENZGRÜNDE",b:"<p><b>Zahlungsunfähigkeit:</b> Das Geld reicht <b>jetzt</b> nicht für fällige Rechnungen.<br><b>Drohende Zahlungsunfähigkeit:</b> Das Geld reicht <b>später</b> voraussichtlich nicht.<br><b>Überschuldung:</b> Alles, was das Unternehmen besitzt, ist weniger wert als seine Schulden.</p>"},
+ T4:{h:"TIPPKARTE T4 · INSOLVENZQUOTE",b:"<p>Beispiel: Insolvenzmasse 10.000 €, Insolvenzforderungen 200.000 €</p><p>Quote = 10.000 × 100 : 200.000 = <b>5 %</b><br>→ Ein Gläubiger mit 1.000 € Forderung erhält 1.000 × 5 : 100 = <b>50 €</b>.</p>"},
+ L7:{h:"TIPPKARTE · ABLAUF",b:"<p>Zuerst kommt der Antrag. Dann prüft das Gericht, ob das Vermögen für die Kosten reicht. Erst danach wird eröffnet und ein Verwalter übernimmt. Wenn alle Forderungen bekannt sind, entscheiden die Gläubiger über die Zukunft.</p>"},
+ L8:{h:"TIPPKARTE · ENTSCHEIDEN",b:"<p>Überlege für jede Option: Was passiert mit den Beschäftigten, den Gläubigern und dem Inhaber?</p><p>Ein gutes Urteil nennt Gründe, die zur eigenen Entscheidung passen, und nimmt ein Gegenargument ernst.</p>"}
+};
+
+/* ================= Fallakten ================= */
+const AKTE={
+ krume:{h:"AKTE · BÄCKEREI KRUME GMBH (FIKTIV)",b:"<p>Familienbetrieb mit 3 Filialen und 25 Beschäftigten. Die Familie möchte wachsen und braucht dafür eine Beratung zu Bilanz, Investition und Finanzierung.</p><table><tr><td>Anlagevermögen</td><td>400.000 €</td></tr><tr><td>Umlaufvermögen</td><td>100.000 €</td></tr><tr><td>Gesamtkapital</td><td>500.000 €</td></tr><tr><td>Eigenkapital</td><td>150.000 €</td></tr><tr><td>langfristiges Fremdkapital</td><td>250.000 €</td></tr><tr><td>kurzfristiges Fremdkapital</td><td>100.000 €</td></tr><tr><td>Gewinn</td><td>30.000 €</td></tr><tr><td>Umsatz</td><td>600.000 €</td></tr></table>"},
+ pixel:{h:"AKTE · PIXELHAUS GMBH (FIKTIV)",b:"<p>Die Pixelhaus GmbH wurde 2019 gegründet und hat 9 Beschäftigte. Sie betreibt ein Gaming-Café mit Snackbar und organisiert Turniere und Firmenfeiern.</p><p>Seit einem Jahr kommen deutlich weniger Gäste, weil viele lieber zu Hause online spielen. Die Stromkosten sind stark gestiegen. Der Inhaber hat eine teure VR-Station gekauft, die kaum genutzt wird. Rechnungen werden zu spät bezahlt, der Getränkelieferant liefert nur noch gegen Vorkasse. Die Miete wurde zweimal verspätet überwiesen. Einen Finanzplan gibt es nicht.</p><table><tr><td>Zahlungsmittel (Bank, Kasse)</td><td>6.000 €</td></tr><tr><td>Forderungen (offene Rechnungen für Firmenfeiern)</td><td>14.000 €</td></tr><tr><td>kurzfristige Verbindlichkeiten</td><td>40.000 €</td></tr></table>"},
+ kunterbunt:{h:"FAX · SPIELWARENKETTE KUNTERBUNT (FIKTIV)",b:"<p>Die Spielwarenkette Kunterbunt mit 30 Filialen und 600 Beschäftigten stellt im März einen Insolvenzantrag. Ein Insolvenzverwalter übernimmt. Im Juni stimmen die Gläubiger einem Sanierungsplan zu. 20 Filialen mit 400 Beschäftigten bleiben erhalten, 10 Filialen schließen. Die Gläubiger erhalten 4 % ihrer Forderungen.</p>"}
+};
+AKTE.pixel2={h:"AKTE · PIXELHAUS GMBH – VERFAHREN ERÖFFNET",b:"<p>Das Insolvenzverfahren ist eröffnet. Du bist Insolvenzverwalterin bzw. Insolvenzverwalter und machst der Gläubigerversammlung einen Vorschlag.</p><p>Die Snackbar macht Verluste. Der Bereich Turniere und Firmenfeiern ist gut gebucht und macht Gewinn. Ein Event-Unternehmen möchte diesen Bereich mit vier Beschäftigten kaufen. Der Vermieter würde die Miete senken, wenn das Pixelhaus weitermacht. Der Inhaber bringt 20.000 € aus seinem Privatvermögen ein, wenn das Unternehmen weitergeführt wird.</p><p><b>Optionen:</b><br>(1) Verkauf des Eventbereichs an das Event-Unternehmen<br>(2) Sanierung: Snackbar schließen, Schwerpunkt Turniere und Feiern<br>(3) Liquidation des gesamten Unternehmens</p>"+AKTE.pixel.b};
+
+/* ================= Inhalte ================= */
+const CAN=[
+ "Ich kann den Zusammenhang zwischen Investition und Finanzierung erläutern.",
+ "Ich kann Aktiv- und Passivseite einer Bilanz erklären und Positionen dem Anlage- oder Umlaufvermögen zuordnen.",
+ "Ich kann Investitionsarten und ihre Ziele unterscheiden.",
+ "Ich kann für eine Situation eine passende Finanzierungsform bestimmen und begründen.",
+ "Ich kann Eigenkapitalquote, Anlagendeckung, Eigenkapital- und Umsatzrentabilität berechnen und deuten.",
+ "Ich kann Anzeichen und Ursachen einer Unternehmenskrise unterscheiden.",
+ "Ich kann die drei Insolvenzgründe beschreiben und die Liquidität 1. und 2. Grades berechnen.",
+ "Ich kann den Ablauf eines Insolvenzverfahrens beschreiben und die Insolvenzquote berechnen.",
+ "Ich kann begründet beurteilen, wie es mit einem insolventen Unternehmen weitergehen soll."
+];
+const ARTEN=["Erstinvestition","Erweiterungsinvestition","Rationalisierungsinvestition","Ersatzinvestition"];
+const URS=["personell","sachlich","organisatorisch","außerbetrieblich"];
+const GRUND=["Zahlungsunfähigkeit","drohende Zahlungsunfähigkeit","Überschuldung"];
+const FIN_B="Finanzierungsform";
+
+const LEVELS=[
+{id:"L1",no:1,title:"DIE BILANZ",sub:"Investition und Finanzierung",akte:"krume",tip:"L1",
+ fax:"Die Bäckerei Krume GmbH (fiktiv) will wachsen. Bevor die Familie investiert, soll sie ihre Bilanz verstehen. Dein Auftrag: Erkläre, was auf der Aktiv- und auf der Passivseite steht.",
+ tasks:[
+ {id:"1a",type:"gap",afb:"I",op:"Gib wieder",q:"Ergänze die Lücken: Was zeigen die beiden Seiten der Bilanz?",
+  parts:["Die Aktivseite zeigt, ",{o:["wofür","woher","wann"],c:0}," das Kapital verwendet wird (Vermögen). Die Passivseite zeigt, ",{o:["woher","wofür","wann"],c:0}," es stammt (Eigen- und Fremdkapital). Eine Investition ist eine Mittel",{o:["verwendung","herkunft","vergabe"],c:0},", eine Finanzierung eine Mittel",{o:["herkunft","verwendung","vergabe"],c:0},"."],
+  explain:"Die Aktivseite beantwortet die Frage „Wofür ist das Geld eingesetzt?“ (Mittelverwendung = Investition). Die Passivseite beantwortet „Woher kommt das Geld?“ (Mittelherkunft = Finanzierung). Beide Seiten sind immer gleich groß."},
+ {id:"1b",type:"single",afb:"II",op:"Erläutere",q:"Wie hängen Investition und Finanzierung zusammen?",
+  opts:[{t:"Jede Investition muss finanziert werden – das Geld dafür muss irgendwoher kommen.",ok:1},
+   {t:"Finanzieren muss ein Unternehmen nur, wenn es Verluste macht.",err:"Auch gesunde Unternehmen finanzieren: Jede Anschaffung braucht Geld – ob mit Gewinn oder Verlust."},
+   {t:"Investitionen stehen auf der Passivseite, die Finanzierung auf der Aktivseite.",err:"Genau umgekehrt: Investitionen (Vermögen) stehen auf der Aktivseite, die Finanzierung (Kapital) auf der Passivseite."},
+   {t:"Investition und Finanzierung haben nichts miteinander zu tun.",err:"Doch: Wer etwas anschafft (Investition), braucht dafür Geld (Finanzierung)."}],
+  explain:"Investition und Finanzierung gehören zusammen: Die Investition zeigt, wofür das Geld eingesetzt wird, die Finanzierung, woher es kommt."},
+ {id:"1c",type:"match",afb:"I",op:"Ordne zu",q:"Ordne die Positionen der Bäckerei Krume dem Anlage- oder dem Umlaufvermögen zu.",
+  cats:["Anlagevermögen","Umlaufvermögen"],
+  items:[{t:"Backstube mit Gebäude",c:0},{t:"Mehl- und Zuckervorräte",c:1},{t:"Bargeld in den Ladenkassen",c:1},{t:"Lieferwagen",c:0},{t:"Backöfen",c:0},{t:"Noch nicht bezahlte Rechnungen eines Hotels, das täglich Brötchen bezieht",c:1}],
+  hint:"Frage dich: Bleibt die Position lange im Betrieb oder verändert sie sich laufend?",
+  explain:"Anlagevermögen bleibt langfristig im Unternehmen (Gebäude, Öfen, Fahrzeuge). Umlaufvermögen verändert sich laufend: Vorräte werden verbacken, Bargeld wird ausgegeben, offene Kundenrechnungen (Forderungen) werden bezahlt."},
+ {id:"1d",type:"match",afb:"I",op:"Ordne zu",q:"Steht die Position auf der Aktiv- oder auf der Passivseite der Bilanz?",
+  cats:["Aktivseite","Passivseite"],
+  items:[{t:"Bankdarlehen",c:1},{t:"Kapital der Eigentümerfamilie",c:1},{t:"Kühltheke",c:0},{t:"Guthaben auf dem Geschäftskonto",c:0}],
+  hint:"Aktiv: Was besitzt die Bäckerei? Passiv: Woher kommt das Geld?",
+  explain:"Auf der Aktivseite steht, was das Unternehmen besitzt (Kühltheke, Bankguthaben). Auf der Passivseite steht, woher das Geld kommt: von den Eigentümern (Eigenkapital) oder von Gläubigern wie der Bank (Fremdkapital)."}
+ ]},
+{id:"L2",no:2,title:"INVESTIEREN",sub:"Investitionsarten",akte:"krume",tip:"L2",
+ fax:"Familie Krume plant mehrere Anschaffungen. Ordne ein, welche Investitionsart jeweils vorliegt und welches Ziel dahintersteht.",
+ tasks:[
+ /* LEHRKRAFT PRÜFEN: Begriffe gemäß Text 2 / M2 */
+ {id:"2a",type:"match",afb:"II",op:"Ordne zu",q:"Welche Investitionsart liegt jeweils vor?",cats:ARTEN,
+  items:[{t:"Die Gründerin richtet 2015 ihre erste Bäckerei komplett ein.",c:0},{t:"Die Bäckerei eröffnet eine vierte Filiale im Nachbarort.",c:1},{t:"Ein neuer Ofen ersetzt zwei alte, braucht deutlich weniger Strom und muss seltener bedient werden.",c:2},{t:"Ein Lieferwagen ist nach einem Motorschaden nicht mehr zu reparieren und wird durch ein gleichwertiges Modell ersetzt.",c:3}],
+  hint:"Entscheidend ist das Ziel: Wird gleichwertig ersetzt, mehr geschaffen oder günstiger gearbeitet?",
+  explain:"Erste Einrichtung = Erstinvestition. Neue Filiale = mehr Kapazität (Erweiterung). Sparsamer Ofen statt zwei alter = Kosten senken (Rationalisierung). Gleichwertiger Lieferwagen = Ersatz."},
+ {id:"2b",type:"match",afb:"I",op:"Nenne",q:"Welches Ziel verfolgt die jeweilige Investitionsart?",cats:ARTEN,
+  items:[{t:"Den Betrieb überhaupt erst starten",c:0},{t:"Mehr verkaufen, die Kapazität erhöhen",c:1},{t:"Kosten senken, effizienter arbeiten",c:2},{t:"Den Betrieb im bisherigen Umfang erhalten",c:3}],
+  explain:"Jede Investitionsart hat ein typisches Ziel: starten (Erst), wachsen (Erweiterung), sparen (Rationalisierung), erhalten (Ersatz)."}
+ ]},
+{id:"L3",no:3,title:"WOHER KOMMT DAS GELD?",sub:"Finanzierungsregeln und -arten",akte:"krume",tip:"L3",
+ fax:"Jede Investition braucht Geld. Empfiehl für jeden Fall der Bäckerei Krume die passende Finanzierungsform – und begründe sie.",
+ tasks:[
+ /* LEHRKRAFT PRÜFEN: Bezeichnungen gemäß Texte 3–5 und M3 */
+ {id:"3a",type:"tf",afb:"I",op:"Beurteile die Aussagen",q:"Schnellrunde: Richtig oder falsch?",
+  items:[{t:"Ein Bankdarlehen ist Fremdfinanzierung.",v:true,why:"Das Geld kommt von der Bank, einer Gläubigerin – also Fremdkapital."},
+   {t:"Selbstfinanzierung ist Außenfinanzierung.",v:false,why:"Bei der Selbstfinanzierung stammt das Geld aus dem eigenen Gewinn – das ist Innenfinanzierung."},
+   {t:"Bringt eine neue Gesellschafterin Geld ein, ist das Eigenfinanzierung.",v:true,why:"Sie wird Miteigentümerin; ihr Geld ist Eigenkapital."},
+   {t:"Ein Lieferantenkredit ist Eigenfinanzierung.",v:false,why:"Der Lieferant ist Gläubiger – es handelt sich um Fremdfinanzierung."},
+   {t:"Bei der Innenfinanzierung kommt das Geld aus dem Unternehmen selbst.",v:true,why:"Zum Beispiel aus Gewinnen, die nicht ausgezahlt werden."}],
+  explain:"Eigen- oder Fremdfinanzierung fragt: Wem gehört das Geld? Außen- oder Innenfinanzierung fragt: Kommt es von außen oder aus dem Unternehmen selbst?"},
+ {id:"3b",type:"single",afb:"I",op:"Nenne",q:"Was besagt die Finanzierungsregel der Fristenkongruenz (goldene Bilanzregel)?",
+  opts:[{t:"Was lange im Unternehmen bleibt, wird langfristig finanziert – kurzfristiger Bedarf kurzfristig.",ok:1},
+   {t:"Alles wird möglichst kurzfristig finanziert, weil das am flexibelsten ist.",err:"Dann müsste etwa ein Gebäude ständig neu finanziert werden – das ist riskant."},
+   {t:"Anschaffungen dürfen nur mit Fremdkapital bezahlt werden.",err:"Die Regel sagt nichts über ein Verbot von Eigenkapital – es geht um die Laufzeit."},
+   {t:"Langfristiges Vermögen wird mit kurzfristigen Krediten bezahlt.",err:"Genau das soll vermieden werden: Der Kredit wäre fällig, bevor sich die Anschaffung bezahlt gemacht hat."}],
+  explain:"Fristenkongruenz heißt: Die Laufzeit der Finanzierung passt zur Nutzungsdauer. Eine Backstube für 25 Jahre wird langfristig finanziert, ein kurzer Geldengpass kurzfristig."},
+ {id:"3c",type:"reason",afb:"II",op:"Bestimme und begründe",q:"Fall: Der Mehllieferant erlaubt, die Lieferung erst nach 60 Tagen zu bezahlen.",
+  a:{q:"Welche Finanzierungsform liegt vor?",opts:[{t:"Lieferantenkredit",ok:1},{t:"Kontokorrentkredit",err:"Ein Kontokorrentkredit ist ein Kreditrahmen auf dem Bankkonto – hier gibt aber der Lieferant Zeit."},{t:"Leasing",err:"Beim Leasing wird etwas gemietet. Hier wird Mehl gekauft und später bezahlt."},{t:"Selbstfinanzierung",err:"Bei der Selbstfinanzierung stammt das Geld aus dem eigenen Gewinn."}],explain:"Der Lieferant gewährt ein Zahlungsziel – das ist ein Lieferantenkredit."},
+  b:{q:"Warum passt diese Finanzierungsform?",opts:[{t:"Der Lieferant gibt ein Zahlungsziel – die Bäckerei bezahlt die Ware später.",ok:1},{t:"Die Bank stellt einen Kreditrahmen auf dem Geschäftskonto bereit.",err:"Hier ist keine Bank beteiligt."},{t:"Die Bäckerei finanziert die Ware aus eigenen Gewinnen.",err:"Die Bäckerei zahlt gerade nicht sofort – das Geld kommt vom Lieferanten."},{t:"Das Mehl wird über viele Jahre genutzt.",err:"Mehl wird schnell verbraucht – es gehört zum Umlaufvermögen."}],explain:"Kurzfristiger Bedarf (Ware) wird kurzfristig über den Lieferanten finanziert."}},
+ {id:"3d",type:"reason",afb:"II",op:"Bestimme und begründe",q:"Fall: Die Stromnachzahlung ist fällig. Für wenige Tage reicht das Geld auf dem Geschäftskonto nicht, danach kommen die Einnahmen aus dem Weihnachtsgeschäft.",
+  a:{q:"Welche Finanzierungsform passt?",opts:[{t:"Kontokorrentkredit",ok:1},{t:"Langfristiges Darlehen",err:"Das Geld fehlt nur für wenige Tage – ein Darlehen über viele Jahre passt nicht zur kurzen Dauer."},{t:"Beteiligungsfinanzierung",err:"Für ein paar Tage holt man keine neuen Miteigentümer ins Unternehmen."},{t:"Leasing",err:"Beim Leasing wird ein Gegenstand gemietet – hier fehlt einfach kurz Geld."}],explain:"Der Kontokorrentkredit ist ein Kreditrahmen auf dem Geschäftskonto für kurze Engpässe."},
+  b:{q:"Warum passt diese Finanzierungsform?",opts:[{t:"Das Geld fehlt nur für wenige Tage – dafür passt ein kurzfristiger Kreditrahmen auf dem Geschäftskonto.",ok:1},{t:"Der Lieferant gewährt ein Zahlungsziel.",err:"Es geht um die Stromnachzahlung, nicht um einen Lieferanten, der Zeit gibt."},{t:"Die Anschaffung wird 25 Jahre genutzt.",err:"Es wird nichts angeschafft – es fehlt kurz Geld."},{t:"Die Familie bringt neues Eigenkapital ein.",err:"Davon ist im Fall keine Rede."}],explain:"Kurzer Engpass, kurzfristige Finanzierung – das entspricht der Fristenkongruenz."}},
+ {id:"3e",type:"reason",afb:"II",op:"Bestimme und begründe",q:"Fall: Eine neue, größere Backstube wird für 800.000 € gebaut und soll 25 Jahre genutzt werden.",
+  a:{q:"Welche Finanzierungsform passt?",opts:[{t:"Langfristiges Darlehen",ok:1},{t:"Kontokorrentkredit",err:"Der Kontokorrentkredit ist für kurze Engpässe gedacht – nicht für 25 Jahre."},{t:"Lieferantenkredit",err:"Ein Lieferant gibt nur wenige Wochen Zahlungsziel – viel zu kurz für eine Backstube."},{t:"Leasing",err:"Eine eigene Backstube wird gebaut und soll der Bäckerei gehören."}],explain:"Eine Anschaffung für 25 Jahre braucht eine Finanzierung mit langer Laufzeit."},
+  b:{q:"Warum passt diese Finanzierungsform?",opts:[{t:"Die Backstube wird lange genutzt, deshalb muss auch die Finanzierung langfristig sein.",ok:1},{t:"Ein Lieferant gibt ein Zahlungsziel.",err:"Hier gibt kein Lieferant Zeit."},{t:"Das Geld fehlt nur für wenige Tage.",err:"Die Backstube kostet 800.000 € und wird 25 Jahre genutzt – das ist kein kurzer Engpass."},{t:"Leasing ist immer am günstigsten.",err:"Das stimmt so nicht – und hier geht es um ein Darlehen."}],explain:"Fristenkongruenz: lange Nutzung, lange Finanzierung."}},
+ {id:"3f",type:"reason",afb:"II",op:"Bestimme und begründe",q:"Fall: Die Kassensysteme in allen Filialen sollen immer auf dem neuesten Stand sein und alle drei Jahre getauscht werden.",
+  a:{q:"Welche Finanzierungsform passt?",opts:[{t:"Leasing",ok:1},{t:"Langfristiges Darlehen",err:"Ein Darlehen über viele Jahre passt nicht zu Geräten, die alle drei Jahre getauscht werden."},{t:"Lieferantenkredit",err:"Der Lieferantenkredit verschiebt nur die Zahlung um einige Wochen."},{t:"Selbstfinanzierung",err:"Dann müsste die Bäckerei die Kassen alle drei Jahre aus dem Gewinn kaufen – der Fall verlangt regelmäßigen Tausch."}],explain:"Beim Leasing werden die Geräte gemietet und nach Vertragsende gegen neue getauscht."},
+  b:{q:"Warum passt diese Finanzierungsform?",opts:[{t:"Die Kassen werden nur kurz genutzt und regelmäßig getauscht – beim Leasing mietet man und tauscht nach Vertragsende.",ok:1},{t:"Die Kassen werden 25 Jahre genutzt.",err:"Im Fall steht: alle drei Jahre tauschen."},{t:"Das Geld fehlt nur für wenige Tage.",err:"Es geht nicht um einen Engpass, sondern um regelmäßig neue Geräte."},{t:"Der Gewinn wird einbehalten.",err:"Das wäre Selbstfinanzierung."}],explain:"Leasing passt, wenn man Geräte nutzen, aber nicht dauerhaft besitzen will."}},
+ {id:"3g",type:"reason",afb:"II",op:"Bestimme und begründe",q:"Fall: Der Gewinn des Vorjahres wird nicht an die Familie ausgezahlt, sondern für eine neue Kühltheke verwendet.",
+  a:{q:"Welche Finanzierungsform liegt vor?",opts:[{t:"Selbstfinanzierung",ok:1},{t:"Langfristiges Darlehen",err:"Es wird kein Geld bei der Bank geliehen."},{t:"Beteiligungsfinanzierung",err:"Es kommt kein neuer Gesellschafter hinzu."},{t:"Lieferantenkredit",err:"Kein Lieferant gibt Zahlungsziel – die Bäckerei nutzt eigenes Geld."}],explain:"Einbehaltener Gewinn = Selbstfinanzierung (Innenfinanzierung)."},
+  b:{q:"Warum ist das Selbstfinanzierung?",opts:[{t:"Das Geld stammt aus dem eigenen Gewinn und bleibt im Unternehmen.",ok:1},{t:"Eine Bank leiht das Geld.",err:"Dann wäre es Fremdfinanzierung."},{t:"Ein Lieferant gewährt ein Zahlungsziel.",err:"Dann wäre es ein Lieferantenkredit."},{t:"Eine neue Gesellschafterin bringt Geld ein.",err:"Dann wäre es Beteiligungsfinanzierung."}],explain:"Das Geld kommt aus dem Unternehmen selbst – deshalb Innenfinanzierung."}},
+ {id:"3h",type:"reason",blue:true,afb:"II",op:"Bestimme und begründe",q:"Fall: Eine Bekannte der Familie steigt mit 100.000 € als neue Gesellschafterin ein.",
+  a:{q:"Welche Finanzierungsform liegt vor?",opts:[{t:"Beteiligungsfinanzierung",ok:1},{t:"Langfristiges Darlehen",err:"Sie leiht das Geld nicht, sie wird Miteigentümerin."},{t:"Selbstfinanzierung",err:"Das Geld kommt von außen, nicht aus dem eigenen Gewinn."},{t:"Kontokorrentkredit",err:"Hier ist keine Bank und kein Kreditrahmen beteiligt."}],explain:"Neue Gesellschafter bringen Eigenkapital von außen – Beteiligungsfinanzierung."},
+  b:{q:"Warum ist das Eigenfinanzierung von außen?",opts:[{t:"Neues Eigenkapital kommt von außen durch eine neue Gesellschafterin.",ok:1},{t:"Die Bank leiht das Geld und bekommt Zinsen.",err:"Das wäre ein Darlehen (Fremdfinanzierung)."},{t:"Der Gewinn bleibt im Unternehmen.",err:"Das wäre Selbstfinanzierung (innen)."},{t:"Der Lieferant zahlt später.",err:"Ein Lieferant zahlt nicht – er lässt sich später bezahlen."}],explain:"Eigen, weil sie Miteigentümerin wird; außen, weil das Geld nicht aus dem Unternehmen stammt."}}
+ ]},
+{id:"L4",no:4,title:"DIE KENNZAHLEN",sub:"Bilanzkennzahlen",akte:"krume",tip:"L4",
+ fax:"Die Bank will Kennzahlen sehen. Berechne die wichtigsten Bilanzkennzahlen der Bäckerei Krume und deute sie. Alle Zahlen findest du in der Akte.",
+ tasks:[
+ {id:"4a",type:"calc",afb:"II",op:"Berechne",q:"Berechne die Eigenkapitalquote der Bäckerei Krume.",formula:"EK-QUOTE = EIGENKAPITAL × 100 : GESAMTKAPITAL",data:"EIGENKAPITAL 150.000 € · GESAMTKAPITAL 500.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"150.000 × 100 : 500.000",ok:1},{t:"150.000 × 100 : 400.000",err:"400.000 € ist das Anlagevermögen. Für die Eigenkapitalquote brauchst du das Gesamtkapital."},{t:"500.000 × 100 : 150.000",err:"Das ist der Kehrwert: Eigenkapital gehört nach oben."},{t:"150.000 : 500.000",err:"Hier fehlt das „× 100“ – sonst bekommst du keine Prozentzahl."}],explain:"Eigenkapital × 100, geteilt durch das Gesamtkapital."},
+  opts:[{t:"30 %",ok:1},{t:"37,5 %",err:"Du hast durch das Anlagevermögen (400.000 €) geteilt statt durch das Gesamtkapital (500.000 €)."},{t:"333 %",err:"Das ist der Kehrwert: Du hast Gesamtkapital durch Eigenkapital geteilt."},{t:"0,3",err:"Du hast vergessen, mit 100 zu multiplizieren."}],
+  explain:"150.000 × 100 : 500.000 = 30 %. Knapp ein Drittel des Kapitals gehört den Eigentümern."},
+ {id:"4b",type:"single",afb:"II",op:"Deute",q:"Die Eigenkapitalquote beträgt 30 %. Was bedeutet das?",
+  opts:[{t:"30 % des Kapitals stammen von den Eigentümern, 70 % sind Fremdkapital.",ok:1},{t:"Die Bäckerei macht 30 % Gewinn.",err:"Über den Gewinn sagt die Eigenkapitalquote nichts – das zeigen die Rentabilitäten."},{t:"30 % des Vermögens sind Anlagevermögen.",err:"Die Eigenkapitalquote betrachtet die Passivseite (Herkunft), nicht die Zusammensetzung des Vermögens."},{t:"Die Bäckerei kann 30 % ihrer Schulden sofort bezahlen.",err:"Das würde die Liquidität beschreiben, nicht die Eigenkapitalquote."}],
+  explain:"Je höher die Eigenkapitalquote, desto unabhängiger ist ein Unternehmen von Gläubigern und desto besser kann es Verluste auffangen."},
+ {id:"4c",type:"calc",afb:"II",op:"Berechne",q:"Berechne die Anlagendeckung I.",formula:"ANLAGENDECKUNG I = EIGENKAPITAL × 100 : ANLAGEVERMÖGEN",data:"EIGENKAPITAL 150.000 € · ANLAGEVERMÖGEN 400.000 €",
+  /* LEHRKRAFT PRÜFEN: Welche Anlagendeckung M5 verwendet */
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"150.000 × 100 : 400.000",ok:1},{t:"150.000 × 100 : 500.000",err:"Das wäre die Eigenkapitalquote. Bei der Anlagendeckung teilst du durch das Anlagevermögen."},{t:"400.000 × 100 : 150.000",err:"Das ist der Kehrwert."},{t:"(150.000 + 250.000) × 100 : 400.000",err:"Das ist die Anlagendeckung II. Gefragt ist die Anlagendeckung I – nur mit Eigenkapital."}],explain:"Eigenkapital × 100, geteilt durch das Anlagevermögen."},
+  opts:[{t:"37,5 %",ok:1},{t:"30 %",err:"Du hast durch das Gesamtkapital geteilt – das ergibt die Eigenkapitalquote."},{t:"267 %",err:"Das ist der Kehrwert: Anlagevermögen durch Eigenkapital."},{t:"0,375",err:"Du hast vergessen, mit 100 zu multiplizieren."}],
+  explain:"150.000 × 100 : 400.000 = 37,5 %."},
+ {id:"4d",type:"single",afb:"II",op:"Deute",q:"Die Anlagendeckung I beträgt 37,5 %. Was bedeutet das?",
+  opts:[{t:"Nur gut ein Drittel von Gebäude, Öfen und Fahrzeugen ist mit eigenem Geld finanziert, der Rest mit Fremdkapital.",ok:1},{t:"Die Bäckerei hat 37,5 % Gewinn gemacht.",err:"Die Anlagendeckung sagt nichts über den Gewinn."},{t:"37,5 % der Schulden sind kurzfristig.",err:"Die Anlagendeckung vergleicht Eigenkapital und Anlagevermögen, nicht die Laufzeit der Schulden."},{t:"Die Bäckerei kann 37,5 % ihrer Rechnungen sofort bezahlen.",err:"Das beschreibt die Liquidität."}],
+  explain:"Das Anlagevermögen ist nur zu 37,5 % durch Eigenkapital gedeckt. Ob die Finanzierung trotzdem solide ist, zeigt die Anlagendeckung II mit dem langfristigen Fremdkapital."},
+ {id:"4e",type:"calc",blue:true,afb:"II",op:"Berechne",q:"Berechne die Anlagendeckung II.",formula:"ANLAGENDECKUNG II = (EIGENKAPITAL + LANGFR. FREMDKAPITAL) × 100 : ANLAGEVERMÖGEN",data:"EIGENKAPITAL 150.000 € · LANGFR. FREMDKAPITAL 250.000 € · ANLAGEVERMÖGEN 400.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"(150.000 + 250.000) × 100 : 400.000",ok:1},{t:"150.000 × 100 : 400.000",err:"Das ist die Anlagendeckung I – das langfristige Fremdkapital fehlt."},{t:"(150.000 + 250.000 + 100.000) × 100 : 400.000",err:"Das kurzfristige Fremdkapital gehört nicht dazu."},{t:"400.000 × 100 : (150.000 + 250.000)",err:"Das ist der Kehrwert."}],explain:"Eigenkapital plus langfristiges Fremdkapital, mal 100, geteilt durch das Anlagevermögen."},
+  opts:[{t:"100 %",ok:1},{t:"37,5 %",err:"Du hast das langfristige Fremdkapital vergessen."},{t:"62,5 %",err:"Du hast nur das langfristige Fremdkapital genommen, das Eigenkapital fehlt."},{t:"125 %",err:"Du hast das gesamte Fremdkapital addiert – das kurzfristige gehört nicht dazu."}],
+  explain:"400.000 × 100 : 400.000 = 100 %. Das Anlagevermögen ist vollständig langfristig finanziert – die goldene Bilanzregel ist erfüllt."},
+ {id:"4f",type:"calc",afb:"II",op:"Berechne",q:"Berechne die Eigenkapitalrentabilität.",formula:"EK-RENTABILITÄT = GEWINN × 100 : EIGENKAPITAL",data:"GEWINN 30.000 € · EIGENKAPITAL 150.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"30.000 × 100 : 150.000",ok:1},{t:"30.000 × 100 : 500.000",err:"500.000 € ist das Gesamtkapital. Gefragt ist die Verzinsung des Eigenkapitals."},{t:"150.000 × 100 : 30.000",err:"Das ist der Kehrwert."},{t:"30.000 × 100 : 600.000",err:"600.000 € ist der Umsatz – das wäre die Umsatzrentabilität."}],explain:"Gewinn × 100, geteilt durch das Eigenkapital."},
+  opts:[{t:"20 %",ok:1},{t:"6 %",err:"Du hast durch das Gesamtkapital geteilt statt durch das Eigenkapital."},{t:"5 %",err:"Du hast durch den Umsatz geteilt – das ist die Umsatzrentabilität."},{t:"500 %",err:"Das ist der Kehrwert: Eigenkapital durch Gewinn."}],
+  explain:"30.000 × 100 : 150.000 = 20 %. Das eingesetzte Eigenkapital hat sich mit 20 % verzinst."},
+ {id:"4g",type:"calc",afb:"II",op:"Berechne",q:"Berechne die Umsatzrentabilität.",formula:"UMSATZRENTABILITÄT = GEWINN × 100 : UMSATZ",data:"GEWINN 30.000 € · UMSATZ 600.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"30.000 × 100 : 600.000",ok:1},{t:"30.000 × 100 : 150.000",err:"Das wäre die Eigenkapitalrentabilität."},{t:"600.000 × 100 : 30.000",err:"Das ist der Kehrwert."},{t:"30.000 : 600.000",err:"Hier fehlt das „× 100“."}],explain:"Gewinn × 100, geteilt durch den Umsatz."},
+  opts:[{t:"5 %",ok:1},{t:"20 %",err:"Du hast durch das Eigenkapital geteilt – das ist die Eigenkapitalrentabilität."},{t:"6 %",err:"Du hast durch das Gesamtkapital geteilt."},{t:"0,05",err:"Du hast vergessen, mit 100 zu multiplizieren."}],
+  explain:"30.000 × 100 : 600.000 = 5 %."},
+ {id:"4h",type:"single",afb:"II",op:"Deute",q:"Die Umsatzrentabilität beträgt 5 %. Was bedeutet das?",
+  opts:[{t:"Von 100 € Umsatz bleiben 5 € Gewinn.",ok:1},{t:"Der Umsatz ist um 5 % gestiegen.",err:"Die Umsatzrentabilität vergleicht Gewinn und Umsatz eines Jahres, keine Veränderung."},{t:"5 % der Kundschaft kaufen regelmäßig ein.",err:"Über die Kundschaft sagt die Kennzahl nichts."},{t:"Die Bäckerei zahlt 5 % Zinsen an die Bank.",err:"Zinsen sind hier nicht gemeint."}],
+  explain:"Die Umsatzrentabilität zeigt, wie viel vom Umsatz als Gewinn übrig bleibt."}
+ ]},
+{id:"L5",no:5,title:"KRISENSIGNALE",sub:"Anzeichen und Ursachen einer Krise",akte:"pixel",tip:"T1",
+ fax:"Neues Mandat, neue Lage: Die Pixelhaus GmbH (fiktiv) steckt in Schwierigkeiten. Lies die Akte und finde die Krisensignale und ihre Ursachen.",
+ tasks:[
+ {id:"5a",type:"multi",afb:"I",op:"Nenne",q:"Woran erkennst du, dass die Pixelhaus GmbH in einer Krise steckt? Nutze die Akte.",need:5,
+  opts:[{t:"Rechnungen werden zu spät bezahlt.",ok:1},{t:"Der Getränkelieferant liefert nur noch gegen Vorkasse.",ok:1},{t:"Es kommen deutlich weniger Gäste.",ok:1},{t:"Die Miete wurde zweimal verspätet überwiesen.",ok:1},{t:"Es gibt keinen Finanzplan.",ok:1},{t:"Das Café hat 9 Beschäftigte.",ok:0},{t:"Es werden Turniere organisiert.",ok:0}],
+  hint:"Ein Krisensignal ist etwas, das auf Geldprobleme oder schlechte Planung hinweist.",
+  explain:"Verspätete Zahlungen, Vorkasse, sinkende Gästezahlen und fehlende Planung sind typische Warnzeichen. Die Zahl der Beschäftigten oder Turniere sind dagegen keine Krisensignale."},
+ {id:"5b",type:"match",afb:"II",op:"Ordne zu",q:"Ordne die Beispiele den Ursachen einer Unternehmenskrise zu.",cats:URS,tip:"T1",
+  items:[{t:"Die Inhaberin eines Ladens hat keine kaufmännische Ausbildung und kennt ihre Kosten nicht.",c:0},{t:"Der Geschäftsführer entscheidet alles allein; viele gute Fachkräfte kündigen.",c:0},{t:"Eine Firma kauft eine teure Kühlanlage, die viel zu groß für den Bedarf ist.",c:1},{t:"Ein Hersteller produziert weiter Handyhüllen für ein Modell, das kaum noch jemand besitzt.",c:1},{t:"Bestellungen werden doppelt aufgegeben, weil niemand weiß, wer zuständig ist.",c:2},{t:"Niemand im Betrieb weiß, wann welche Rechnungen fällig sind.",c:2},{t:"Direkt nebenan eröffnet eine große Kette mit sehr niedrigen Preisen.",c:3},{t:"Wegen einer Baustelle ist die Straße vor dem Geschäft ein Jahr gesperrt.",c:3}],
+  hint:"Nutze die Leitfragen: Menschen? Produkt/Kosten? Abläufe? Außerhalb?",
+  explain:"Personell: Fehler von Eigentümern oder Führung. Sachlich: falsche Produkte oder Anschaffungen. Organisatorisch: schlechte Abläufe und Planung. Außerbetrieblich: Ursachen außerhalb des Unternehmens."},
+ {id:"5c",type:"match",afb:"II",op:"Ordne zu",q:"Ordne die Ursachen aus der Pixelhaus-Akte den Kategorien zu.",cats:URS,tip:"T1",
+  items:[{t:"Teure VR-Station gekauft, die kaum genutzt wird",c:1},{t:"Kein Finanzplan",c:2},{t:"Weniger Gäste, weil viele lieber zu Hause online spielen",c:3},{t:"Stark gestiegene Stromkosten",c:3}],
+  explain:"Die VR-Station ist eine falsche Anschaffung (sachlich), der fehlende Finanzplan ein Planungsproblem (organisatorisch). Verändertes Kundenverhalten und Strompreise kommen von außen (außerbetrieblich)."},
+ {id:"5d",type:"single",afb:"II",op:"Erkläre",q:"Warum ist ein Unternehmen mit wenig Eigenkapital stärker gefährdet, insolvent zu werden?",
+  opts:[{t:"Verluste verbrauchen das Eigenkapital schnell; ist es aufgebraucht, sind die Schulden höher als das Vermögen (Überschuldung).",ok:1},{t:"Weil es dann keine Kredite aufnehmen darf.",err:"Kredite darf es grundsätzlich aufnehmen. Das Problem ist ein anderes: Verluste zehren das wenige Eigenkapital auf."},{t:"Weil Eigenkapital jedes Jahr zurückgezahlt werden muss.",err:"Eigenkapital muss nicht zurückgezahlt werden – Fremdkapital schon."},{t:"Weil es dann mehr Steuern zahlen muss.",err:"Mit Steuern hat das nichts zu tun."}],
+  explain:"Eigenkapital ist ein Puffer. Verluste und hohe Privatentnahmen verringern es. Wenig Puffer heißt: Schon kleinere Verluste können zur Überschuldung führen."},
+ {id:"5e",type:"argue",blue:true,afb:"III",op:"Nimm Stellung",q:"„Unternehmen, die nicht gut genug wirtschaften, sollen vom Markt verschwinden.“ Nimm Stellung.",style:"gen",
+  positions:[{id:"zu",label:"Ich stimme eher zu.",text:"Ich stimme der Aussage „Unternehmen, die nicht gut genug wirtschaften, sollen vom Markt verschwinden“ eher zu."},{id:"nicht",label:"Ich stimme eher nicht zu.",text:"Ich stimme der Aussage „Unternehmen, die nicht gut genug wirtschaften, sollen vom Markt verschwinden“ eher nicht zu."}],
+  cards:[{id:"a1",t:"Kundinnen und Kunden profitieren, wenn bessere Unternehmen übrig bleiben.",fits:["zu"],against:["nicht"]},{id:"a2",t:"Gute Unternehmen werden belohnt, das spornt alle an.",fits:["zu"],against:["nicht"]},{id:"b1",t:"Beschäftigte verlieren ihren Arbeitsplatz, obwohl sie oft nichts falsch gemacht haben.",fits:["nicht"],against:["zu"]},{id:"b2",t:"Manche Unternehmen sind nur durch Pech in Not geraten, z. B. durch eine Baustelle.",fits:["nicht"],against:["zu"]}],
+  proPool:"all",conPool:"rest",
+  explain:"Gut begründet: Deine Argumente passen zu deiner Position, und du hast ein Gegenargument berücksichtigt."}
+ ]},
+{id:"L6",no:6,title:"ZAHLUNGSUNFÄHIG?",sub:"Insolvenzgründe und Liquidität",akte:"pixel",tip:"T3",
+ fax:"Die Lage bei Pixelhaus spitzt sich zu. Prüfe, welche Insolvenzgründe es gibt, und berechne die Liquidität der Pixelhaus GmbH.",
+ tasks:[
+ {id:"6a",type:"single",afb:"I",op:"Gib wieder",q:"Was ist das Hauptziel eines Insolvenzverfahrens?",
+  opts:[{t:"Die Gläubiger sollen möglichst viel von ihrem Geld bekommen; wenn möglich, soll das Unternehmen erhalten bleiben.",ok:1},{t:"Das Unternehmen soll bestraft werden.",err:"Bestraft wird höchstens, wer den Antrag zu spät stellt. Das Verfahren selbst soll Gläubiger schützen und Unternehmen wenn möglich retten."},{t:"Der Staat soll die Schulden übernehmen.",err:"Der Staat übernimmt die Schulden nicht."},{t:"Alle Beschäftigten sollen sofort entlassen werden.",err:"Im Gegenteil: Wenn möglich, soll das Unternehmen mit seinen Arbeitsplätzen erhalten bleiben."}],
+  explain:"Das Insolvenzverfahren verteilt das vorhandene Vermögen gerecht an die Gläubiger und versucht, das Unternehmen zu retten, wo das möglich ist."},
+ {id:"6b",type:"single",afb:"I",op:"Nenne",q:"Welche Aussage zu den Verfahrensarten stimmt?",
+  opts:[{t:"Die Regelinsolvenz betrifft Unternehmen, die Verbraucherinsolvenz Privatpersonen.",ok:1},{t:"Die Regelinsolvenz betrifft Privatpersonen, die Verbraucherinsolvenz Unternehmen.",err:"Genau umgekehrt."},{t:"Beide Verfahren gelten nur für große Konzerne.",err:"Auch kleine Unternehmen und Privatpersonen können insolvent werden."},{t:"Die Verbraucherinsolvenz gilt nur für Banken.",err:"„Verbraucher“ sind Privatpersonen."}],
+  explain:"Unternehmen durchlaufen das Regelinsolvenzverfahren, Privatpersonen das Verbraucherinsolvenzverfahren."},
+ {id:"6c",type:"match",afb:"I",op:"Beschreibe",q:"Ordne jede Beschreibung dem passenden Insolvenzgrund zu.",cats:GRUND,
+  items:[{t:"Das Geld reicht jetzt nicht für die fälligen Rechnungen.",c:0},{t:"Das Geld wird später voraussichtlich nicht reichen.",c:1},{t:"Alles, was das Unternehmen besitzt, ist weniger wert als seine Schulden.",c:2}],
+  explain:"Zahlungsunfähigkeit = jetzt kein Geld. Drohende Zahlungsunfähigkeit = später kein Geld. Überschuldung = Vermögen kleiner als Schulden."},
+ {id:"6d",type:"match",afb:"II",op:"Ordne zu",q:"Welcher Insolvenzgrund liegt vor?",cats:GRUND,
+  items:[{t:"Ein Friseursalon muss heute Miete und Löhne über 12.000 € bezahlen. Auf dem Konto sind 2.000 €, die Bank gibt keinen Kredit.",c:0},{t:"Ein Online-Shop kann alle Rechnungen noch bezahlen. In sechs Monaten wird ein Kredit fällig, den er laut Planung nicht zurückzahlen kann.",c:1},{t:"Ein Bauunternehmen besitzt Maschinen und Gebäude im Wert von 500.000 €, hat aber 800.000 € Schulden.",c:2}],
+  hint:"Achte auf die Zeit: heute, später – oder geht es um Vermögen und Schulden?",
+  explain:"Der Friseursalon kann heute nicht zahlen (Zahlungsunfähigkeit). Der Online-Shop kann später nicht zahlen (drohende Zahlungsunfähigkeit). Beim Bauunternehmen sind die Schulden höher als das Vermögen (Überschuldung)."},
+ {id:"6e",type:"calc",afb:"II",op:"Berechne",tip:"T2",q:"Berechne die Liquidität 1. Grades der Pixelhaus GmbH.",formula:"LIQUIDITÄT 1. GRADES = ZAHLUNGSMITTEL × 100 : KURZFR. VERBINDLICHKEITEN",data:"ZAHLUNGSMITTEL 6.000 € · FORDERUNGEN 14.000 € · KURZFR. VERBINDLICHKEITEN 40.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"6.000 × 100 : 40.000",ok:1},{t:"(6.000 + 14.000) × 100 : 40.000",err:"Das ist die Liquidität 2. Grades – beim 1. Grad zählen nur die Zahlungsmittel."},{t:"40.000 × 100 : 6.000",err:"Das ist der Kehrwert."},{t:"6.000 : 40.000",err:"Hier fehlt das „× 100“."}],explain:"Nur das Geld auf Konto und in der Kasse, geteilt durch die kurzfristigen Schulden."},
+  opts:[{t:"15 %",ok:1},{t:"50 %",err:"Du hast die Forderungen mitgerechnet – das ist die Liquidität 2. Grades."},{t:"667 %",err:"Das ist der Kehrwert: Verbindlichkeiten durch Zahlungsmittel."},{t:"0,15",err:"Du hast vergessen, mit 100 zu multiplizieren."}],
+  explain:"6.000 × 100 : 40.000 = 15 %. Der Richtwert liegt bei etwa 20 % – Pixelhaus liegt darunter."},
+ {id:"6f",type:"calc",afb:"II",op:"Berechne",tip:"T2",q:"Berechne die Liquidität 2. Grades der Pixelhaus GmbH.",formula:"LIQUIDITÄT 2. GRADES = (ZAHLUNGSMITTEL + FORDERUNGEN) × 100 : KURZFR. VERBINDLICHKEITEN",data:"ZAHLUNGSMITTEL 6.000 € · FORDERUNGEN 14.000 € · KURZFR. VERBINDLICHKEITEN 40.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"(6.000 + 14.000) × 100 : 40.000",ok:1},{t:"6.000 × 100 : 40.000",err:"Das ist die Liquidität 1. Grades – beim 2. Grad kommen die Forderungen dazu."},{t:"40.000 × 100 : (6.000 + 14.000)",err:"Das ist der Kehrwert."},{t:"14.000 × 100 : 40.000",err:"Die Zahlungsmittel fehlen."}],explain:"Zahlungsmittel plus Forderungen, mal 100, geteilt durch die kurzfristigen Schulden."},
+  opts:[{t:"50 %",ok:1},{t:"15 %",err:"Du hast die Forderungen vergessen."},{t:"200 %",err:"Das ist der Kehrwert."},{t:"35 %",err:"Du hast nur die Forderungen genommen, die Zahlungsmittel fehlen."}],
+  explain:"(6.000 + 14.000) × 100 : 40.000 = 50 %. Der Richtwert liegt bei 100 % – Pixelhaus liegt weit darunter."},
+ {id:"6g",type:"single",afb:"II",op:"Deute",q:"Die Liquidität 2. Grades beträgt 50 % (Richtwert: 100 %). Was bedeutet das?",
+  opts:[{t:"Selbst wenn alle Kunden zahlen, reicht das Geld nur für die Hälfte der kurzfristigen Schulden.",ok:1},{t:"Pixelhaus hat 50 % Gewinn gemacht.",err:"Die Liquidität sagt nichts über den Gewinn."},{t:"Pixelhaus hat doppelt so viel Geld wie Schulden.",err:"Genau umgekehrt: Die Schulden sind doppelt so hoch wie Geld und Forderungen zusammen."},{t:"Die Hälfte der Kunden hat schon bezahlt.",err:"Die Kennzahl vergleicht Geld und Forderungen mit den kurzfristigen Schulden."}],
+  explain:"Unter 100 % kann ein Unternehmen seine kurzfristigen Schulden selbst dann nicht vollständig bezahlen, wenn alle Kunden zahlen – ein deutliches Warnsignal."},
+ {id:"6h",type:"reason",afb:"II",op:"Erkläre",q:"Insolvenzverschleppung",
+  a:{q:"Was versteht man unter Insolvenzverschleppung?",opts:[{t:"Der Insolvenzantrag wird zu spät gestellt.",ok:1},{t:"Das Insolvenzverfahren dauert besonders lange.",err:"Gemeint ist nicht die Dauer des Verfahrens, sondern der Zeitpunkt des Antrags."},{t:"Ein Gläubiger fordert sein Geld zu früh.",err:"Es geht um das Unternehmen, nicht um die Gläubiger."},{t:"Das Unternehmen zieht in eine andere Stadt um.",err:"Mit einem Umzug hat der Begriff nichts zu tun."}],explain:"Wer weiß, dass das Unternehmen zahlungsunfähig oder überschuldet ist, muss rechtzeitig einen Antrag stellen."},
+  b:{q:"Warum wird Insolvenzverschleppung bestraft?",opts:[{t:"Die Gläubiger verlieren dadurch noch mehr Geld.",ok:1},{t:"Weil das Gericht dann mehr Arbeit hat.",err:"Das ist nicht der Grund."},{t:"Weil das Unternehmen sonst zu schnell saniert wird.",err:"Eine schnelle Sanierung wäre eher gut."},{t:"Weil dann keine Steuern mehr gezahlt werden.",err:"Der wichtigste Grund ist der Schutz aller Gläubiger."}],explain:"Je länger ein insolventes Unternehmen weitermacht, desto mehr Schulden entstehen – und desto weniger bekommen die Gläubiger am Ende."}},
+ {id:"6i",type:"reason",blue:true,afb:"II",op:"Erläutere",q:"Schutzschirmverfahren",
+  a:{q:"Was ist das Schutzschirmverfahren?",opts:[{t:"Ein Unternehmen, das noch nicht zahlungsunfähig ist, kann sich unter Aufsicht selbst sanieren und ist eine Zeit lang vor Forderungen geschützt.",ok:1},{t:"Der Staat übernimmt alle Schulden eines Unternehmens.",err:"Der Staat übernimmt keine Schulden."},{t:"Ein Verfahren nur für Privatpersonen.",err:"Das Schutzschirmverfahren ist für Unternehmen gedacht."},{t:"Ein Verfahren, bei dem das Unternehmen sofort aufgelöst wird.",err:"Ziel ist gerade die Sanierung, nicht die Auflösung."}],explain:"Das Unternehmen bleibt in der Verantwortung der eigenen Geschäftsführung, wird aber überwacht."},
+  b:{q:"Warum lohnt es sich, früh zu handeln?",opts:[{t:"Wer früh handelt, hat noch Geld und Zeit für eine Sanierung.",ok:1},{t:"Dann müssen keine Schulden mehr bezahlt werden.",err:"Schulden verschwinden nicht."},{t:"Dann übernimmt der Staat die Schulden.",err:"Der Staat übernimmt keine Schulden."}],explain:"Das Schutzschirmverfahren ist nur möglich, solange das Unternehmen noch nicht zahlungsunfähig ist. Wer zu lange wartet, verliert diese Chance."}}
+ ]},
+{id:"L7",no:7,title:"DAS VERFAHREN",sub:"Ablauf, Begriffe, Insolvenzquote",akte:"pixel",tip:"L7",
+ fax:"Pixelhaus hat Insolvenz beantragt. Du begleitest das Verfahren: Ablauf, wichtige Begriffe und die Insolvenzquote.",
+ tasks:[
+ {id:"7a",type:"order",afb:"I",op:"Beschreibe den Ablauf",q:"Bringe die Schritte des Insolvenzverfahrens in die richtige Reihenfolge.",
+  cards:["Insolvenzantrag beim Amtsgericht","Das Gericht prüft, ob genug Vermögen für die Kosten des Verfahrens da ist.","Eröffnung des Verfahrens – ein Insolvenzverwalter übernimmt.","Die Gläubiger melden ihre Forderungen an.","Die Gläubigerversammlung entscheidet über die Zukunft.","Sanierung (Weiterführung) oder Liquidation (Verkauf und Verteilung)"],
+  hint:"Ohne Antrag passiert nichts – und ohne genug Vermögen wird das Verfahren gar nicht erst eröffnet.",
+  explain:"Antrag → Prüfung der Masse → Eröffnung mit Verwalter → Gläubiger melden Forderungen an → Gläubigerversammlung entscheidet → Sanierung oder Liquidation."},
+ {id:"7b",type:"single",afb:"I",op:"Nenne",q:"Die Beschäftigten der Pixelhaus GmbH haben ihren letzten Lohn nicht bekommen. Was gilt?",
+  opts:[{t:"Sie erhalten für bis zu drei Monate Insolvenzgeld von der Agentur für Arbeit.",ok:1},{t:"Sie bekommen nichts – der Lohn ist verloren.",err:"Für ausgefallenen Lohn gibt es eine Absicherung."},{t:"Der Insolvenzverwalter zahlt ihnen den Lohn aus eigener Tasche.",err:"Der Verwalter zahlt nicht privat."},{t:"Sie erhalten ihren Lohn zwei Jahre lang vom Staat.",err:"Der Zeitraum ist deutlich kürzer."}],
+  explain:"Das Insolvenzgeld ersetzt ausgefallenen Lohn für bis zu drei Monate. Es wird von der Agentur für Arbeit gezahlt."},
+ {id:"7c",type:"match",afb:"I",op:"Erkläre",q:"Ordne jeder Erklärung den passenden Begriff zu.",
+  cats:["Insolvenzverwalter","Insolvenzgeld","Insolvenzmasse","Insolvenzquote",{t:"Abweisung mangels Masse",blue:true}],
+  items:[{t:"Übernimmt im Verfahren die Geschäfte und verwaltet das Vermögen.",c:0},{t:"Ersatz für ausgefallenen Lohn, gezahlt von der Agentur für Arbeit.",c:1},{t:"Das Vermögen, das zur Verteilung an die Gläubiger zur Verfügung steht.",c:2},{t:"Der Anteil seiner Forderung, den ein Gläubiger tatsächlich bekommt.",c:3},{t:"Das Verfahren wird nicht eröffnet, weil das Vermögen nicht einmal die Kosten deckt.",c:4,blue:true}],
+  explain:"Diese Begriffe brauchst du, um ein Insolvenzverfahren zu beschreiben."},
+ {id:"7d",type:"calc",afb:"II",op:"Berechne",tip:"T4",q:"Nach dem Verkauf aller Werte sind 20.000 € übrig. Die Forderungen aller Gläubiger betragen 400.000 €. Berechne die Insolvenzquote.",formula:"INSOLVENZQUOTE = INSOLVENZMASSE × 100 : INSOLVENZFORDERUNGEN",data:"INSOLVENZMASSE 20.000 € · INSOLVENZFORDERUNGEN 400.000 €",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"20.000 × 100 : 400.000",ok:1},{t:"400.000 × 100 : 20.000",err:"Das ist der Kehrwert."},{t:"20.000 : 400.000",err:"Hier fehlt das „× 100“."},{t:"400.000 − 20.000",err:"Das ist der fehlende Betrag, keine Quote."}],explain:"Masse × 100, geteilt durch die Forderungen."},
+  opts:[{t:"5 %",ok:1},{t:"2.000 %",err:"Das ist der Kehrwert: Forderungen durch Masse."},{t:"0,05",err:"Du hast vergessen, mit 100 zu multiplizieren."},{t:"50 %",err:"Hier ist beim Rechnen eine Null verloren gegangen."}],
+  explain:"20.000 × 100 : 400.000 = 5 %. Jeder Gläubiger bekommt 5 % seiner Forderung."},
+ {id:"7e",type:"calc",afb:"II",op:"Berechne",tip:"T4",q:"Der Getränkelieferant hatte eine Forderung von 8.000 €. Wie viel erhält er bei einer Quote von 5 %?",formula:"AUSZAHLUNG = FORDERUNG × QUOTE : 100",data:"FORDERUNG 8.000 € · QUOTE 5 %",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"8.000 × 5 : 100",ok:1},{t:"8.000 − 8.000 × 5 : 100",err:"Damit berechnest du den Verlust, nicht die Auszahlung."},{t:"8.000 × 100 : 5",err:"Hier sind Quote und 100 vertauscht."},{t:"8.000 : 5",err:"So teilst du die Forderung in fünf Teile – das ist nicht die Quote."}],explain:"Forderung × Quote, geteilt durch 100."},
+  opts:[{t:"400 €",ok:1},{t:"7.600 €",err:"Das ist der Betrag, den der Lieferant verliert – nicht die Auszahlung."},{t:"4.000 €",err:"Hier ist eine Null zu viel – prüfe deinen Rechenweg."},{t:"40 €",err:"Hier fehlt eine Null – prüfe deinen Rechenweg."}],
+  explain:"8.000 × 5 : 100 = 400 €. Der Lieferant verliert 7.600 €."},
+ {id:"7f",type:"single",afb:"II",op:"Erläutere",q:"Der Lieferant erhält nur 400 € von 8.000 €. Was bedeutet das für ihn?",
+  opts:[{t:"Er verliert 7.600 € und kann dadurch selbst in Zahlungsschwierigkeiten geraten.",ok:1},{t:"Er bekommt den Rest später vom Staat.",err:"Der Staat ersetzt den Verlust nicht."},{t:"Für ihn ändert sich nichts.",err:"7.600 € fehlen ihm – das kann sein eigenes Unternehmen belasten."},{t:"Er muss den Pixelhaus-Beschäftigten Lohn zahlen.",err:"Damit hat der Lieferant nichts zu tun."}],
+  explain:"Insolvenzen können eine Kettenreaktion auslösen: Wer Geld verliert, hat selbst weniger, um seine Rechnungen zu bezahlen."},
+ {id:"7g",type:"match",afb:"II",op:"Vergleiche",q:"Gehört die Aussage zur Sanierung oder zur Liquidation?",cats:["Sanierung","Liquidation"],
+  items:[{t:"Das Unternehmen wird weitergeführt.",c:0},{t:"Das Unternehmen wird aufgelöst.",c:1},{t:"Arbeitsplätze bleiben teilweise erhalten.",c:0},{t:"Alle Beschäftigten verlieren ihren Arbeitsplatz.",c:1},{t:"Gläubiger verzichten oft auf einen Teil ihrer Forderungen.",c:0},{t:"Das Vermögen wird verkauft und verteilt.",c:1}],
+  explain:"Bei der Sanierung soll das Unternehmen gerettet werden – oft mit Verzicht der Gläubiger. Bei der Liquidation wird es aufgelöst, das Vermögen verkauft und verteilt."},
+ /* LEHRKRAFT PRÜFEN: Transfergesellschaft und ihre Finanzierung gemäß M5 */
+ {id:"7h",type:"single",afb:"II",op:"Erkläre",q:"Was macht eine Transfergesellschaft?",
+  opts:[{t:"Sie übernimmt entlassene Beschäftigte für eine begrenzte Zeit und hilft ihnen, eine neue Stelle zu finden.",ok:1},{t:"Sie zahlt den Gläubigern ihre Forderungen vollständig aus.",err:"Für die Gläubiger ist sie nicht zuständig."},{t:"Sie kauft das insolvente Unternehmen.",err:"Sie kauft kein Unternehmen, sondern kümmert sich um Beschäftigte."},{t:"Sie entscheidet, ob das Verfahren eröffnet wird.",err:"Das entscheidet das Gericht."}],
+  explain:"Die Transfergesellschaft fängt entlassene Beschäftigte auf und unterstützt sie bei der Suche nach einer neuen Arbeit."},
+ {id:"7i",type:"reason",blue:true,afb:"III",op:"Beurteile",q:"Ein Lieferant soll einem Sanierungsplan zustimmen und dabei auf einen Teil seiner Forderung verzichten.",
+  a:{q:"Kann die Zustimmung für ihn sinnvoll sein?",opts:[{t:"Ja, das kann für ihn sinnvoll sein.",ok:1},{t:"Nein, ein Verzicht lohnt sich nie.",err:"Überlege, was er bei einer Liquidation bekäme."},{t:"Das spielt für ihn keine Rolle.",err:"Es geht um sein Geld und einen Kunden – das spielt eine Rolle."}],explain:"Ein Verzicht kann sich lohnen."},
+  b:{q:"Welche Begründung trägt?",opts:[{t:"Bei einer Weiterführung bekommt er meist mehr als bei einer Liquidation und behält einen Kunden.",ok:1},{t:"Er bekommt dann sein Geld vollständig zurück.",err:"Bei einem Verzicht bekommt er gerade nicht alles."},{t:"Er ist gesetzlich dazu verpflichtet.",err:"Die Gläubiger stimmen ab – niemand muss zustimmen."}],explain:"Lieber ein Teil plus ein Kunde für die Zukunft als nur eine kleine Quote aus der Liquidation."}}
+ ]},
+{id:"L8",no:8,title:"BOSS-MANDAT: DU ENTSCHEIDEST",sub:"Wie geht es mit Pixelhaus weiter?",akte:"pixel2",tip:"L8",
+ fax:"BOSS-MANDAT. Du bist jetzt Insolvenzverwalterin bzw. Insolvenzverwalter der Pixelhaus GmbH. Lies die Akte genau – die Gläubigerversammlung wartet auf deinen Vorschlag.",
+ tasks:[
+ {id:"8a",type:"match",afb:"II",op:"Stelle gegenüber",q:"Welche Folge gehört zu welcher Option?",
+  cats:["Option 1: Verkauf Eventbereich","Option 2: Sanierung","Option 3: Liquidation"],
+  items:[{t:"Beschäftigte: Vier arbeiten beim Event-Unternehmen weiter, die anderen verlieren ihren Arbeitsplatz.",c:0},{t:"Gläubiger: Sie bekommen schnell Geld aus dem Kaufpreis.",c:0},{t:"Inhaber: Der Eventbereich gehört künftig einem anderen Unternehmen.",c:0},
+   {t:"Beschäftigte: Die Beschäftigten der Snackbar verlieren ihren Arbeitsplatz, die übrigen arbeiten im Pixelhaus weiter.",c:1},{t:"Gläubiger: Sie verzichten auf einen Teil, bekommen aber Geld aus dem weiterlaufenden Betrieb.",c:1},{t:"Inhaber: Er führt das Pixelhaus weiter und bringt 20.000 € ein.",c:1},
+   {t:"Beschäftigte: Alle neun verlieren ihren Arbeitsplatz.",c:2},{t:"Gläubiger: Sie bekommen nur den Erlös aus dem Verkauf von Geräten und Möbeln.",c:2},{t:"Inhaber: Das Unternehmen wird aufgelöst.",c:2}],
+  hint:"Lies die Akte: Was wird verkauft, was weitergeführt, was aufgelöst?",
+  explain:"Jede Option hat andere Folgen für Beschäftigte, Gläubiger und Inhaber. Genau diese Folgen musst du gegeneinander abwägen."},
+ {id:"8b",type:"argue",afb:"III",op:"Beurteile und entscheide",q:"Mach der Gläubigerversammlung einen begründeten Vorschlag.",style:"l8",
+  positions:[{id:"1",label:"Option 1: Verkauf des Eventbereichs an das Event-Unternehmen",staff:"Vier Beschäftigte arbeiten beim Event-Unternehmen weiter, die anderen verlieren ihren Arbeitsplatz."},{id:"2",label:"Option 2: Sanierung – Snackbar schließen, Schwerpunkt Turniere und Feiern",staff:"Die Beschäftigten der Snackbar verlieren ihren Arbeitsplatz, die übrigen arbeiten im Pixelhaus weiter."},{id:"3",label:"Option 3: Liquidation des gesamten Unternehmens",staff:"Alle neun Beschäftigten verlieren ihren Arbeitsplatz."}],
+  cards:[{id:"p1",t:"Vier Arbeitsplätze im Eventbereich bleiben erhalten.",fits:["1","2"],against:[]},{id:"p2",t:"Die Gläubiger bekommen durch den Kaufpreis schnell Geld.",fits:["1"],against:[]},{id:"p3",t:"Der Bereich mit Gewinn bleibt, der Bereich mit Verlust wird geschlossen.",fits:["2"],against:[]},{id:"p4",t:"Der Vermieter senkt die Miete und der Inhaber bringt 20.000 € ein.",fits:["2"],against:[]},{id:"p5",t:"Die Gläubiger haben sofort Klarheit, es gibt kein weiteres Risiko.",fits:["3"],against:[]},{id:"p6",t:"Es wird kein weiteres Geld in ein Unternehmen gesteckt, das Verluste macht.",fits:["3"],against:[]},
+   {id:"f1",t:"Die Gläubiger bekommen ihr Geld vollständig zurück.",fits:[],against:[],wrong:"Bei einer Insolvenz reicht das Vermögen nicht für alle Schulden – die Gläubiger bekommen nur einen Teil (Insolvenzquote)."},
+   {id:"c1",t:"Die Beschäftigten der Snackbar verlieren ihren Arbeitsplatz.",fits:[],against:["1","2"]},{id:"c2",t:"Es ist unsicher, ob genug Gäste kommen, damit das Pixelhaus wieder Gewinn macht.",fits:[],against:["2"]},{id:"c3",t:"Alle neun Beschäftigten verlieren ihren Arbeitsplatz.",fits:[],against:["3"]},{id:"c4",t:"Beim Verkauf einzelner Geräte kommt meist wenig Geld zusammen.",fits:[],against:["3"]},{id:"c5",t:"Der Inhaber verliert sein Unternehmen.",fits:[],against:["1","3"]}],
+  proPool:["p1","p2","p3","p4","p5","p6","f1"],conPool:["c1","c2","c3","c4","c5"],
+  explain:"Gut begründet: Deine Argumente passen zu deiner Entscheidung, und du hast einen Nachteil ehrlich benannt."}
+ ]},
+{id:"BONUS",no:"★",bonus:true,title:"EILMELDUNG: KUNTERBUNT",sub:"Bonus-Mandat (fiktiver Fall)",akte:"kunterbunt",tip:"T4",
+ fax:"EILMELDUNG. Die Spielwarenkette Kunterbunt (fiktiv) ist insolvent. Lies die Meldung in der Akte und analysiere den Fall.",
+ tasks:[
+ {id:"Ba",type:"order",afb:"I",op:"Beschreibe",q:"Ordne den Verlauf der Kunterbunt-Insolvenz auf dem Zeitstrahl.",
+  cards:["Kunterbunt stellt im März einen Insolvenzantrag.","Ein Insolvenzverwalter übernimmt die Geschäfte.","Im Juni stimmen die Gläubiger einem Sanierungsplan zu.","Kunterbunt macht mit 20 Filialen weiter, 10 Filialen schließen."],
+  explain:"Antrag → Verwalter → Zustimmung der Gläubiger → Weiterführung mit weniger Filialen."},
+ {id:"Bb",type:"reason",afb:"II",op:"Ordne ein",q:"Ordne den Fall Kunterbunt ein.",
+  a:{q:"Handelt es sich um eine Sanierung oder eine Liquidation?",opts:[{t:"Sanierung",ok:1},{t:"Liquidation",err:"Bei einer Liquidation würde das ganze Unternehmen aufgelöst – Kunterbunt macht aber weiter."},{t:"Weder noch – das Verfahren wurde abgewiesen.",err:"Das Verfahren lief: Ein Verwalter übernahm, die Gläubiger stimmten ab."}],explain:"Kunterbunt wird weitergeführt – das ist eine Sanierung."},
+  b:{q:"Woran erkennst du das?",opts:[{t:"Das Unternehmen wird mit 20 Filialen weitergeführt.",ok:1},{t:"Alle Filialen werden geschlossen.",err:"20 Filialen bleiben geöffnet."},{t:"Die Gläubiger bekommen ihr Geld vollständig zurück.",err:"Sie bekommen nur 4 %."},{t:"Der Staat übernimmt die Spielwarenkette.",err:"Davon steht nichts in der Meldung."}],explain:"Weiterführung, wenn auch kleiner = Sanierung."}},
+ {id:"Bc",type:"calc",afb:"II",op:"Berechne",q:"Ein Lieferant hatte eine Forderung von 10.000 €. Wie viel erhält er bei einer Quote von 4 %?",formula:"AUSZAHLUNG = FORDERUNG × QUOTE : 100",data:"FORDERUNG 10.000 € · QUOTE 4 %",
+  ansatz:{q:"Schritt 1: Welcher Rechenansatz ist richtig?",opts:[{t:"10.000 × 4 : 100",ok:1},{t:"10.000 − 10.000 × 4 : 100",err:"Damit berechnest du den Verlust, nicht die Auszahlung."},{t:"10.000 × 100 : 4",err:"Hier sind Quote und 100 vertauscht."},{t:"10.000 : 4",err:"So teilst du die Forderung in vier Teile – das ist nicht die Quote."}],explain:"Forderung × Quote, geteilt durch 100."},
+  opts:[{t:"400 €",ok:1},{t:"9.600 €",err:"Das ist der Verlust, nicht die Auszahlung."},{t:"4.000 €",err:"Hier ist eine Null zu viel."},{t:"40 €",err:"Hier fehlt eine Null."}],
+  explain:"10.000 × 4 : 100 = 400 €. Der Lieferant verliert 9.600 €."},
+ {id:"Bd",type:"argue",blue:true,afb:"III",op:"Beurteile",q:"Kann die Sanierung von Kunterbunt als Erfolg bezeichnet werden?",style:"gen",
+  positions:[{id:"erfolg",label:"Eher ein Erfolg.",text:"Die Sanierung von Kunterbunt ist aus meiner Sicht eher ein Erfolg."},{id:"kein",label:"Eher kein Erfolg.",text:"Die Sanierung von Kunterbunt ist aus meiner Sicht eher kein Erfolg."}],
+  cards:[{id:"x1",t:"400 von 600 Arbeitsplätzen bleiben erhalten.",fits:["erfolg"],against:["kein"]},{id:"x2",t:"Zwei Drittel der Filialen bleiben geöffnet.",fits:["erfolg"],against:["kein"]},{id:"y1",t:"200 Beschäftigte verlieren ihren Arbeitsplatz.",fits:["kein"],against:["erfolg"]},{id:"y2",t:"Die Lieferanten verlieren 96 % ihrer Forderungen.",fits:["kein"],against:["erfolg"]}],
+  proPool:"all",conPool:"rest",
+  explain:"Gut begründet: Deine Argumente passen zu deinem Urteil, und du hast die Gegenseite berücksichtigt."}
+ ]}
+];
+const TASKMAP={};LEVELS.forEach(lv=>lv.tasks.forEach(k=>{TASKMAP[k.id]={k,lv};}));
+
+/* ================= Zustand ================= */
+const S={path:null,done:{},lv:{},risk:[],canBefore:null,canAfter:null};
+function save(){try{localStorage.setItem("kapital89",JSON.stringify(S));}catch(e){}}
+function load(){try{const r=localStorage.getItem("kapital89");if(r){const d=JSON.parse(r);if(d&&typeof d==="object")Object.assign(S,d);}}catch(e){}}
+function resetState(){S.path=null;S.done={};S.lv={};S.risk=[];S.canBefore=null;S.canAfter=null;save();}
+function tasksFor(lv){return lv.tasks.filter(k=>!k.blue||S.path==="blue");}
+function capPts(){return Object.values(S.done).reduce((a,b)=>a+b,0);}
+function maxPts(){return LEVELS.filter(l=>!l.bonus).reduce((a,l)=>a+tasksFor(l).length*100,0)||1;}
+const RANKS=["D","C","B","BB","BBB","A","AA","AAA"],TH=[0,.10,.25,.40,.55,.70,.82,.92];
+function rating(){const p=Math.min(1,capPts()/maxPts());let r=0;TH.forEach((t,i)=>{if(p>=t)r=i;});return RANKS[r];}
+function money(p){return (p*100).toLocaleString("de-DE")+" €";}
+function pathName(){return S.path==="blue"?"PFAD BLAU":"PFAD GRÜN";}
+function lvDone(id){return !!(S.lv[id]&&S.lv[id].done);}
+function unlocked(i){const lv=LEVELS[i];if(lv.bonus)return lvDone("L7");return i===0||lvDone(LEVELS[i-1].id);}
+
+let run=null,T=null;
+
+/* ================= Rahmen: HUD, Seitenleiste, Ticker ================= */
+const TICK="KAPITAL ’89 ▲ EK-QUOTE ▲ LIQUIDITÄT 2. GRADES <i class='dn'>▼</i> ANLAGENDECKUNG ▲ LEASING ▲ KONTOKORRENTKREDIT ▲ LIEFERANTENKREDIT ▲ SELBSTFINANZIERUNG ▲ UMSATZRENTABILITÄT ▲ INSOLVENZQUOTE <i class='dn'>▼</i> SANIERUNG ▲ LIQUIDATION <i class='dn'>▼</i> SCHUTZSCHIRM ▲ FRISTENKONGRUENZ ▲ ";
+function tickerHTML(){return `<div class="ticker" aria-hidden="true"><span>${TICK}${RM?"":TICK}</span></div>`;}
+function renderHUD(inTask){
+  hud.hidden=false;
+  hud.innerHTML=`<div class="hud-l"><span class="mini">KAPITAL ’89</span><span class="hchip">RATING <b>${rating()}</b></span><span class="hchip hide-wide">${money(capPts())}</span></div>
+  <div class="hud-r">${inTask&&run&&currentAkte()?`<button class="btn sm ghost" data-act="akte">AKTE</button>`:""}${inTask?`<button class="btn sm" data-act="pause">❚❚ PAUSE</button>`:`<button class="btn sm ghost" data-act="help">HILFE</button>`}</div>`;
+  renderSide();
+}
+function renderSide(){
+  side.innerHTML=`<div class="sbox"><p class="lbl">BONITÄTS-RATING</p><div class="ladder">${RANKS.map(r=>`<span class="${r===rating()?"on":""}">${r}</span>`).join("")}</div></div>
+  <div class="sbox"><p class="lbl">KAPITAL</p><div class="lcd">${money(capPts())}</div></div>
+  ${run&&run.lv?`<div class="sbox"><p class="lbl">MANDAT</p><p>Level ${run.lv.no}: ${esc(run.lv.sub)}</p>${T?`<p style="margin-top:6px;color:var(--muted)">Aufgabe ${run.i+1} von ${run.tasks.length}</p>`:""}</div>`:""}
+  ${run&&run.mode==="risk"?`<div class="sbox"><p class="lbl">MODUS</p><p>Risiko-Portfolio: Wiederholung</p></div>`:""}
+  <div class="sbox"><p class="lbl">LERNPFAD</p><p>${S.path==="blue"?"Blau: mit ★-Aufgaben und Rechenansatz":"Grün: Tippkarten verfügbar"}</p></div>
+  <div class="sbox"><p class="lbl">RISIKO-PORTFOLIO</p><p>${S.risk.length} Aufgabe${S.risk.length===1?"":"n"} zum Wiederholen</p></div>
+  ${tickerHTML()}`;
+}
+function currentAkte(){if(!run)return null;if(run.mode==="risk"&&T)return AKTE[TASKMAP[T.k.id].lv.akte];return run.lv?AKTE[run.lv.akte]:null;}
+function glitch(){if(RM)return;scr.classList.remove("glitch");void scr.offsetWidth;scr.classList.add("glitch");}
+
+/* ================= Overlays ================= */
+function openOv(html){ov.innerHTML=`<div class="ovbox">${html}</div>`;ov.classList.add("open");ov.scrollTop=0;}
+function closeOv(){ov.classList.remove("open");ov.innerHTML="";}
+function showHelp(){openOv(`<h2 class="h2">SO GEHT’S</h2><ul class="helplist">
+<li>Du arbeitest dich durch acht Mandate: erst die Bäckerei Krume (Finanzierung), dann die Pixelhaus GmbH (Insolvenz).</li>
+<li>Alle Aufgaben löst du durch <b>Antippen</b>. Du musst nichts eintippen.</li>
+<li>Bei einer falschen Antwort bekommst du einen Hinweis und einen zweiten Versuch. Du verlierst nie Kapital, du gewinnst nur weniger.</li>
+<li>Aufgaben, die du auch im zweiten Versuch nicht schaffst, landen im <b>Risiko-Portfolio</b>. Dort kannst du sie wiederholen.</li>
+<li><b>Pfad Grün:</b> Der Button „Tipp“ zeigt dir eine Tippkarte. <b>Pfad Blau:</b> zusätzliche ★-Aufgaben und bei Rechenaufgaben zuerst den Rechenansatz wählen. Du kannst den Pfad jederzeit wechseln.</li>
+<li>Bei Urteilsaufgaben gibt es keine richtige Meinung. Ein Urteil ist gut oder schlecht begründet.</li>
+<li>„Akte“ zeigt dir jederzeit die Fallinformationen. „Pause“ hält das Spiel an.</li>
+<li>Ton gibt es nicht – das Spiel funktioniert komplett ohne.</li>
+<li>Alle Unternehmen im Spiel sind fiktiv.</li></ul>
+<div class="menu"><button class="btn primary" data-act="closeov">VERSTANDEN</button></div>`);}
+function showAkte(){const a=currentAkte();if(!a)return;openOv(`<div class="paper"><div class="faxhead">KAPITAL &amp; PARTNER ▪ MANDATSAKTE</div><h3>${a.h}</h3>${a.b}</div><div class="menu"><button class="btn primary" data-act="closeov">AKTE SCHLIESSEN</button></div>`);}
+function showTip(){const id=tipFor();if(!id)return;const tp=TIPS[id];openOv(`<div class="paper"><h3>${tp.h}</h3>${tp.b}</div><div class="menu"><button class="btn primary" data-act="closeov">ZURÜCK ZUR AUFGABE</button></div>`);}
+function showPause(){openOv(`<h2 class="h2" style="text-align:center">❚❚ PAUSE</h2><p style="text-align:center;color:var(--muted)">Dein Fortschritt ist gespeichert.</p>
+<div class="menu"><button class="btn primary" data-act="closeov">▶ FORTSETZEN</button><button class="btn" data-act="switchpath">PFAD WECHSELN (JETZT: ${pathName()})</button><button class="btn" data-act="help">HILFE</button><button class="btn ghost" data-act="map">ZUR ÜBERSICHT</button></div>`);}
+function showSwitchPath(){const to=S.path==="blue"?"green":"blue";openOv(`<h2 class="h2">PFAD WECHSELN</h2><p>Du wechselst zu <b>${to==="blue"?"Pfad Blau":"Pfad Grün"}</b>. ${to==="blue"?"Ab dem nächsten Mandat bekommst du zusätzliche ★-Aufgaben und wählst bei Rechenaufgaben zuerst den Rechenansatz. Tippkarten sind dann ausgeblendet.":"Tippkarten sind ab sofort verfügbar. ★-Aufgaben entfallen ab dem nächsten Mandat."}</p><div class="menu"><button class="btn primary" data-act="dopath" data-p="${to}">WECHSELN</button><button class="btn ghost" data-act="closeov">ABBRECHEN</button></div>`);}
+
+/* ================= Startbildschirm, Pfad, Ich-kann ================= */
+function renderStart(){
+  run=null;T=null;document.body.classList.remove("playing");hud.hidden=true;closeOv();
+  const has=!!S.path;
+  scr.innerHTML=`<div class="center"><div class="cab">
+  <p class="pre">KAPITAL &amp; PARTNER PRÄSENTIERT</p>
+  <h1 class="logo">KAPITAL ’89</h1>
+  <p class="subtitle">THE FINANCE ARCADE</p>
+  ${tickerHTML()}
+  <p class="coin">KAPITAL EINZAHLEN. MARKT VERSTEHEN.</p>
+  <div class="menu">${has?`<button class="btn primary" data-act="cont">▶ WEITERSPIELEN</button><button class="btn" data-act="newgame">NEUES SPIEL</button>`:`<button class="btn primary" data-act="start">▶ SPIEL STARTEN</button>`}<button class="btn" data-act="help">? SO GEHT’S</button></div>
+  <p class="foot">„Kapital einzahlen“ ist nur Retro-Deko: Das Spiel ist kostenlos und braucht keine Anmeldung. Alle Unternehmen im Spiel sind fiktiv. WP II BWL, Klasse 10: Finanzierung von Unternehmen und Insolvenz.</p>
+  </div></div>`;scr.scrollTop=0;
+}
+function renderPath(){
+  document.body.classList.remove("playing");hud.hidden=true;
+  scr.innerHTML=`<div class="task" style="max-width:720px"><h2 class="h2">WÄHLE DEINEN LERNPFAD</h2><p class="sub" style="margin:0 0 16px">Du kannst den Pfad jederzeit im Menü wechseln.</p>
+  <button class="pathcard g" data-act="pathpick" data-p="green"><h3>▲ PFAD GRÜN</h3><p>Du kannst bei jeder Aufgabe eine Tippkarte aufrufen. Das kostet kein Kapital.</p></button>
+  <button class="pathcard b" data-act="pathpick" data-p="blue"><h3>★ PFAD BLAU</h3><p>Du bekommst zusätzliche ★-Aufgaben und wählst bei Rechenaufgaben zuerst den richtigen Rechenansatz. Ohne Tippkarten.</p></button></div>`;scr.scrollTop=0;
+}
+let CANTMP=[],CANPH="before";
+function renderCan(ph){
+  CANPH=ph;if(!CANTMP.length||CANTMP.length!==CAN.length)CANTMP=new Array(CAN.length).fill(null);
+  document.body.classList.remove("playing");hud.hidden=true;
+  const vals=[["++","sicher"],["+","teilweise"],["–","noch nicht"]];
+  scr.innerHTML=`<div class="task" style="max-width:820px"><h2 class="h2">${ph==="before"?"SELBSTEINSCHÄTZUNG: VORHER":"SELBSTEINSCHÄTZUNG: NACHHER"}</h2>
+  <p class="sub" style="margin:0 0 8px">Wie sicher bist du? ++ sicher · + teilweise · – noch nicht. Es gibt kein Richtig oder Falsch.</p>
+  ${CAN.map((c,i)=>`<div class="canrow"><p>${i+1}. ${esc(c)}</p><div class="canb">${vals.map(v=>`<button class="${CANTMP[i]===v[0]?"sel":""}" data-act="can" data-n="${i}" data-v="${v[0]}" aria-label="${v[1]}">${v[0]}</button>`).join("")}</div></div>`).join("")}
+  <div class="actions"><button class="btn primary" data-act="cansave" ${CANTMP.every(x=>x)?"":"disabled"}>SPEICHERN ▶</button></div></div>`;
+}
+
+/* ================= Übersicht ================= */
+function renderMap(){
+  run=null;T=null;closeOv();document.body.classList.add("playing");renderHUD(false);
+  const l8=lvDone("L8");
+  scr.innerHTML=`<div class="task"><h2 class="h2">MANDATSÜBERSICHT</h2>
+  <p class="sub" style="margin:0">Kapital: ${money(capPts())} · Rating: ${rating()} · ${pathName()}</p>
+  <div class="mapgrid">${LEVELS.map((lv,i)=>{const ok=unlocked(i),d=lvDone(lv.id);const pts=tasksFor(lv).reduce((a,k)=>a+(S.done[k.id]||0),0),mx=tasksFor(lv).length*100;
+    return `<button class="lvcard ${d?"done":""} ${lv.bonus?"bonus":""}" data-act="level" data-id="${lv.id}" ${ok?"":"disabled"}><span class="no">${lv.bonus?"★ BONUS":"LEVEL "+lv.no}</span><span class="tt">${esc(lv.title)}</span><span class="ss">${esc(lv.sub)}</span><span class="st">${!ok?(lv.bonus?"🔒 nach Level 7":"🔒 gesperrt"):d?`▲ erledigt · ${Math.round(pts/mx*100)} %`:"▶ offen"}</span></button>`;}).join("")}</div>
+  <div class="rowbtns"><button class="btn" data-act="risk" ${S.risk.length?"":"disabled"}>RISIKO-PORTFOLIO (${S.risk.length})</button><button class="btn ${l8?"primary":""}" data-act="report" ${l8?"":"disabled"}>ABSCHLUSSBERICHT</button></div>
+  <div class="rowbtns"><button class="btn ghost" data-act="switchpath">PFAD WECHSELN (JETZT: ${pathName()})</button><button class="btn ghost" data-act="home">STARTBILDSCHIRM</button></div>
+  </div>`;scr.scrollTop=0;
+}
+
+/* ================= Level-Ablauf ================= */
+function startLevel(id){
+  const lv=LEVELS.find(l=>l.id===id);run={lv,tasks:tasksFor(lv),i:0,mode:"level",earned:0};T=null;
+  document.body.classList.add("playing");renderHUD(true);
+  scr.innerHTML=`<div class="task" style="max-width:760px"><div class="paper"><div class="faxhead">FAX ▪ KAPITAL &amp; PARTNER ▪ EINGEHENDES MANDAT</div><h3>${lv.bonus?"★ BONUS-MANDAT":"LEVEL "+lv.no}: ${esc(lv.title)}</h3><p>${esc(lv.fax)}</p><p style="margin:0">Aufgaben in diesem Mandat: ${run.tasks.length}</p></div>
+  <div class="actions"><button class="btn primary" data-act="begin">MANDAT ANNEHMEN ▶</button><button class="btn ghost" data-act="akte">AKTE ÖFFNEN</button><button class="btn ghost" data-act="map">ÜBERSICHT</button></div></div>`;
+  scr.scrollTop=0;glitch();
+}
+function startRisk(){
+  const ids=S.risk.filter(id=>TASKMAP[id]);if(!ids.length)return renderMap();
+  run={lv:null,tasks:ids.map(id=>TASKMAP[id].k),i:0,mode:"risk",earned:0};document.body.classList.add("playing");loadTask();
+}
+function loadTask(){
+  if(run.i>=run.tasks.length)return finishRun();
+  T=initTask(run.tasks[run.i]);renderHUD(true);renderTask();scr.scrollTop=0;
+}
+function finishRun(){
+  T=null;const lv=run.lv;
+  if(run.mode==="level"){S.lv[lv.id]={done:true};save();}
+  renderHUD(false);
+  const idxLv=lv?LEVELS.indexOf(lv):-1;const next=idxLv>=0?LEVELS[idxLv+1]:null;
+  const nextOk=next&&!next.bonus;
+  scr.innerHTML=`<div class="center"><div class="cab"><p class="subtitle">${run.mode==="risk"?"RISIKO-PORTFOLIO ABGEARBEITET":"MANDAT ABGESCHLOSSEN"}</p>
+  <h2 class="logo sm">${lv?(lv.bonus?"★ BONUS":"LEVEL "+lv.no):"WIEDERHOLUNG"}</h2>
+  <div class="calc" style="max-width:420px;margin:22px auto"><div class="lcd big">+ ${money(run.earned)}</div></div>
+  <p>Bonitäts-Rating: <b style="color:var(--gold)">${rating()}</b> · Gesamtkapital ${money(capPts())}</p>
+  ${S.risk.length?`<p style="color:var(--muted)">Im Risiko-Portfolio: ${S.risk.length} Aufgabe${S.risk.length===1?"":"n"}</p>`:""}
+  <div class="menu">${lv&&lv.id==="L8"?`<button class="btn primary" data-act="report">ABSCHLUSSBERICHT ▶</button>`:""}${nextOk?`<button class="btn primary" data-act="level" data-id="${next.id}">NÄCHSTES MANDAT ▶</button>`:""}${lv&&lv.id==="L7"?`<button class="btn" data-act="level" data-id="BONUS">★ BONUS-MANDAT</button>`:""}<button class="btn ghost" data-act="map">ÜBERSICHT</button></div></div></div>`;
+  run=null;scr.scrollTop=0;glitch();
+}
+
+/* ================= Aufgaben-Logik ================= */
+function mkC(opts,explain,q,hint){return{opts,order:shuffle(idx(opts.length)),sel:null,dis:new Set(),attempt:1,done:false,pts:0,fb:null,explain,q,hint,lastWrong:null};}
+function initTask(k){
+  const t={k,attempt:1,done:false,pts:0,fb:null,failed:false};
+  switch(k.type){
+    case "single":t.st=[mkC(k.opts,k.explain,null,k.hint)];t.si=0;break;
+    case "calc":t.st=(S.path==="blue"&&k.ansatz)?[mkC(k.ansatz.opts,k.ansatz.explain,k.ansatz.q),mkC(k.opts,k.explain,"Schritt 2: Welches Ergebnis ist richtig?")]:[mkC(k.opts,k.explain,"Welches Ergebnis ist richtig?")];t.si=0;break;
+    case "reason":t.st=[mkC(k.a.opts,k.a.explain,"Schritt 1: "+k.a.q),mkC(k.b.opts,k.b.explain,"Schritt 2: "+k.b.q)];t.si=0;break;
+    case "multi":t.order=shuffle(idx(k.opts.length));t.sel=new Set();t.okL=new Set();t.badL=new Set();break;
+    case "match":t.cats=k.cats.map((c,i)=>({i,t:typeof c==="string"?c:c.t,blue:typeof c==="object"&&!!c.blue})).filter(c=>!c.blue||S.path==="blue");
+      t.items=shuffle(idx(k.items.length).filter(i=>!k.items[i].blue||S.path==="blue"));t.as={};t.lk=new Set();t.wr=new Set();t.cur=t.items[0];break;
+    case "order":t.shuf=shuffle(idx(k.cards.length));t.slots=new Array(k.cards.length).fill(null);t.lk=new Set();break;
+    case "tf":t.ans={};t.lk=new Set();break;
+    case "gap":t.gaps=[];k.parts.forEach((p,pi)=>{if(typeof p!=="string")t.gaps.push({pi,order:shuffle(idx(p.o.length))});});t.fill={};t.lk=new Set();t.wr=new Set();t.active=0;break;
+    case "argue":t.step="pos";t.pos=null;t.pro=[];t.con=null;t.proOrder=null;t.conOrder=null;t.ev=null;break;
+  }
+  return t;
+}
+function isChoice(k){return k.type==="single"||k.type==="calc"||k.type==="reason";}
+function tipFor(){if(!T||S.path!=="green")return null;const k=T.k;if(k.tip)return k.tip;const lv=run&&run.lv?run.lv:TASKMAP[k.id].lv;return lv.tip||null;}
+function record(pts,failed){
+  if(run.mode==="risk")pts=Math.round(pts*0.6);
+  const id=T.k.id;S.done[id]=Math.max(S.done[id]||0,pts);
+  if(failed){if(!S.risk.includes(id))S.risk.push(id);}else{S.risk=S.risk.filter(x=>x!==id);}
+  run.earned+=pts;save();
+}
+function finalize(pts,failed){T.done=true;T.pts=pts;T.failed=failed;record(pts,failed);}
+function okTitle(){return T.attempt===1?"▲ KURS STEIGT: RICHTIG":"▲ KURSERHOLUNG: JETZT STIMMT’S";}
+
+function ready(){
+  const k=T.k;
+  if(isChoice(k))return T.st[T.si].sel!==null;
+  switch(k.type){
+    case "multi":return T.sel.size===k.need;
+    case "match":return T.items.every(i=>T.as[i]!=null);
+    case "order":return T.slots.every(x=>x!==null);
+    case "tf":return k.items.every((_,i)=>T.ans[i]!=null);
+    case "gap":return T.gaps.every((_,g)=>T.fill[g]!=null);
+  }return false;
+}
+function checkChoice(C){
+  const o=C.opts[C.sel];
+  if(o.ok){C.done=true;C.pts=C.attempt===1?100:60;C.fb={up:true,h:C.attempt===1?"▲ KURS STEIGT: RICHTIG":"▲ KURSERHOLUNG: JETZT STIMMT’S",p:[C.explain]};}
+  else if(C.attempt===1){C.attempt=2;C.dis.add(C.sel);C.lastWrong=C.sel;C.sel=null;C.fb={up:false,h:"▼ KORREKTUR: NOCH NICHT",p:[o.err||C.hint||"Lies die Frage noch einmal genau.","Du hast einen zweiten Versuch."]};}
+  else{C.done=true;C.pts=20;C.lastWrong=C.sel;C.dis.add(C.sel);C.fb={up:false,h:"▼ LÖSUNG",p:[o.err||"",C.explain].filter(Boolean)};}
+}
+function doCheck(){
+  const k=T.k;if(T.done||!ready())return;
+  if(isChoice(k)){
+    const C=T.st[T.si];checkChoice(C);
+    if(C.done&&T.si===T.st.length-1){const pts=Math.round(T.st.reduce((a,c)=>a+c.pts,0)/T.st.length);finalize(pts,T.st.some(c=>c.pts===20));}
+    return afterCheck();
+  }
+  const tot=n=>`${n}`;
+  let allOk=false,nOk=0,n=0;
+  if(k.type==="multi"){
+    const corr=new Set(idx(k.opts.length).filter(i=>k.opts[i].ok));
+    const selOk=[...T.sel].filter(i=>corr.has(i));nOk=selOk.length;n=k.need;allOk=nOk===k.need;
+    if(!allOk){if(T.attempt===1){T.okL=new Set(selOk);[...T.sel].filter(i=>!corr.has(i)).forEach(i=>T.badL.add(i));T.sel=new Set(selOk);}else{T.reveal=true;}}
+  }else if(k.type==="match"){
+    n=T.items.length;const wrong=T.items.filter(i=>T.as[i]!==k.items[i].c);nOk=n-wrong.length;allOk=!wrong.length;
+    if(!allOk){if(T.attempt===1){T.items.forEach(i=>{if(T.as[i]===k.items[i].c)T.lk.add(i);});wrong.forEach(i=>{delete T.as[i];T.wr.add(i);});T.cur=wrong[0];}else{T.reveal=true;T.cur=null;}}
+    else T.cur=null;
+  }else if(k.type==="order"){
+    n=k.cards.length;const okS=T.slots.map((c,s)=>c===s);nOk=okS.filter(Boolean).length;allOk=nOk===n;
+    if(!allOk){if(T.attempt===1){T.slots=T.slots.map((c,s)=>{if(c===s){T.lk.add(s);return c;}return null;});}else{T.reveal=true;}}
+  }else if(k.type==="tf"){
+    n=k.items.length;const wrong=k.items.map((it,i)=>i).filter(i=>T.ans[i]!==k.items[i].v);nOk=n-wrong.length;allOk=!wrong.length;
+    if(!allOk){if(T.attempt===1){k.items.forEach((_,i)=>{if(!wrong.includes(i))T.lk.add(i);});wrong.forEach(i=>delete T.ans[i]);T.wrong=new Set(wrong);}else{T.reveal=true;}}
+  }else if(k.type==="gap"){
+    n=T.gaps.length;const wrong=T.gaps.map((g,gi)=>gi).filter(gi=>T.fill[gi]!==k.parts[T.gaps[gi].pi].c);nOk=n-wrong.length;allOk=!wrong.length;
+    if(!allOk){if(T.attempt===1){T.gaps.forEach((g,gi)=>{if(!wrong.includes(gi))T.lk.add(gi);});wrong.forEach(gi=>{delete T.fill[gi];T.wr.add(gi);});T.active=wrong[0];}else{T.reveal=true;}}
+  }
+  if(allOk){const p=T.attempt===1?100:60;T.fb={up:true,h:okTitle(),p:[k.explain]};finalize(p,false);}
+  else if(T.attempt===1){T.attempt=2;T.fb={up:false,h:"▼ KORREKTUR: NOCH NICHT",p:[`${tot(nOk)} von ${n} richtig. Die richtigen Antworten sind jetzt gesperrt (▲).`,k.hint||"Prüfe den Rest noch einmal – du hast einen zweiten Versuch."]};}
+  else{T.fb={up:false,h:"▼ LÖSUNG",p:["Die richtige Lösung ist jetzt markiert.",k.explain]};finalize(20,true);}
+  afterCheck();
+}
+function afterCheck(){rerender();const f=scr.querySelector(".fb");if(f)f.scrollIntoView({block:"nearest",behavior:RM?"auto":"smooth"});}
+function rerender(){const st=scr.scrollTop;renderTask();scr.scrollTop=st;}
+
+/* ================= Aufgaben-Darstellung ================= */
+function head(k){
+  const lv=run.lv||TASKMAP[k.id].lv;
+  return `<div class="thead"><span class="chip">${run.mode==="risk"?"RISIKO-PORTFOLIO":(lv.bonus?"★ BONUS":"LEVEL "+lv.no)}</span><span class="chip">AUFGABE ${run.i+1}/${run.tasks.length}</span><span class="chip afb">AFB ${k.afb} · ${esc(k.op.toUpperCase())}</span>${k.blue?`<span class="chip star">★ PFAD BLAU</span>`:""}</div><h2 class="q">${esc(k.q)}</h2>`;
+}
+function fbHTML(fb){if(!fb)return"";return `<div class="fb ${fb.up?"up":"down"}" role="status"><h3>${fb.h}</h3>${fb.p.map(x=>`<p>${esc(x)}</p>`).join("")}</div>`;}
+function btn(act,label,dis,cls){return `<button class="btn ${cls||"primary"}" data-act="${act}" ${dis?"disabled":""}>${label}</button>`;}
+function choiceBody(C){
+  const two=C.opts.every(o=>o.t.length<46);
+  return `<div class="opts ${two?"two":""}">${C.order.map(i=>{const o=C.opts[i];let cls="opt",mk="";
+    if(C.sel===i)cls+=" sel";
+    if(C.dis.has(i)){cls+=" bad";mk=`<span class="mk">▼ FALSCH</span>`;}
+    if(C.done&&o.ok){cls+=" ok";mk=`<span class="mk">▲ RICHTIG</span>`;}
+    const dis=C.done||C.dis.has(i);
+    return `<button class="${cls}" data-act="pick" data-i="${i}" ${dis?"disabled":""} aria-pressed="${C.sel===i}">${mk}<span>${esc(o.t)}</span></button>`;}).join("")}</div>`;
+}
+function renderTask(){
+  const k=T.k;let body="",acts="";
+  if(isChoice(k)){
+    const C=T.st[T.si];
+    if(k.type==="calc"){
+      const blueAnsatz=T.st.length===2;
+      const showFormula=!blueAnsatz||T.si===1;
+      body+=`<div class="calc">${showFormula?`<div class="lcd">${esc(k.formula)}</div>`:""}${blueAnsatz&&T.si===1?`<div class="lcd data">= ${esc(k.ansatz.opts.find(o=>o.ok).t)}</div>`:""}<div class="lcd data">${esc(k.data)}</div></div>`;
+    }
+    T.st.slice(0,T.si).forEach(pc=>{body+=`<div class="recap">▲ ${esc(pc.q?pc.q.replace(/^Schritt \d: /,""):"")} → ${esc(pc.opts.find(o=>o.ok).t)}</div>`;});
+    if(C.q)body+=`<p class="stagelbl">${esc(C.q.toUpperCase())}</p>`;
+    body+=choiceBody(C)+fbHTML(C.fb);
+    if(C.done)acts=T.si<T.st.length-1?btn("stage","WEITER ▶ SCHRITT "+(T.si+2)):btn("next","WEITER ▶");
+    else acts=btn("check","PRÜFEN",!ready());
+  }else if(k.type==="argue"){
+    const r=argueRender();body=r.body;acts=r.acts;
+  }else{
+    body=({multi:multiBody,match:matchBody,order:orderBody,tf:tfBody,gap:gapBody})[k.type]()+fbHTML(T.fb);
+    if(T.done)acts=btn("next","WEITER ▶");
+    else{acts=btn("check","PRÜFEN",!ready());if(k.type==="order")acts+=btn("oreset","ZURÜCKSETZEN",false,"ghost");}
+  }
+  if(!T.done&&tipFor())acts+=`<button class="btn ghost" data-act="tipp">TIPP</button>`;
+  scr.innerHTML=`<div class="task">${head(k)}${body}<div class="actions">${acts}</div></div>`;
+  renderSide();
+}
+function multiBody(){
+  const k=T.k;
+  return `<p class="count">WÄHLE ${k.need} · AUSGEWÄHLT: ${T.sel.size}</p><div class="opts">${T.order.map(i=>{const o=k.opts[i];let cls="opt",mk="",dis=T.done;
+    if(T.sel.has(i))cls+=" sel";
+    if(T.okL.has(i)){cls+=" ok";mk=`<span class="mk">▲ RICHTIG</span>`;dis=true;}
+    if(T.badL.has(i)){cls+=" bad";mk=`<span class="mk">▼ FALSCH</span>`;dis=true;}
+    if(T.done&&o.ok){cls+=" ok";mk=`<span class="mk">▲ RICHTIG</span>`;}
+    return `<button class="${cls}" data-act="mpick" data-i="${i}" ${dis?"disabled":""} aria-pressed="${T.sel.has(i)}">${mk}<span>${esc(o.t)}</span></button>`;}).join("")}</div>`;
+}
+function matchBody(){
+  const k=T.k;const cn=i=>T.cats.find(c=>c.i===i).t;
+  return `<div class="cats"><p class="hintline">${T.done?"Zuordnung abgeschlossen.":"Tippe zuerst eine Karte an, dann die passende Kategorie."}</p>${T.cats.map(c=>`<button class="cat" data-act="cat" data-c="${c.i}" ${T.done||T.cur==null?"disabled":""}>${esc(c.t)}</button>`).join("")}</div>
+  <div class="mlist">${T.items.map(i=>{const it=k.items[i];let cls="mitem",tag;
+    if(T.lk.has(i)||(T.done&&T.as[i]===it.c)){cls+=" ok";tag=`<span class="tag">▲ ${esc(cn(it.c))}</span>`;}
+    else if(T.reveal){cls+=" bad";tag=`<span class="tag">▼ RICHTIG WÄRE: ${esc(cn(it.c))}</span>`;}
+    else if(T.as[i]!=null){tag=`<span class="tag">${esc(cn(T.as[i]))}</span>`;}
+    else if(T.wr.has(i)){cls+=" bad";tag=`<span class="tag">▼ NEU ZUORDNEN</span>`;}
+    else tag=`<span class="tag open">– NOCH OFFEN –</span>`;
+    if(T.cur===i&&!T.done)cls+=" cur";
+    const dis=T.done||T.lk.has(i);
+    return `<button class="${cls}" data-act="item" data-i="${i}" ${dis?"disabled":""}><span>${esc(it.t)}</span>${tag}</button>`;}).join("")}</div>`;
+}
+function orderBody(){
+  const k=T.k;
+  return `<p class="hintline" style="margin-bottom:10px">${T.done?"":"Tippe die Karten in der richtigen Reihenfolge an. Nochmal tippen entfernt die Nummer."}</p><div class="mlist">${T.shuf.map(ci=>{const s=T.slots.indexOf(ci);let cls="ocard",num=s>=0?s+1:"·",dis=T.done;
+    if(s>=0)cls+=" on";
+    if(s>=0&&T.lk.has(s)){cls+=" ok";dis=true;}
+    if(T.done&&!T.reveal){cls+=" ok";}
+    if(T.reveal){if(s===ci)cls+=" ok";else{cls+=" bad";}num=ci+1;}
+    return `<button class="${cls}" data-act="card" data-i="${ci}" ${dis?"disabled":""}><span class="num">${num}</span><span>${esc(k.cards[ci])}</span></button>`;}).join("")}</div>`;
+}
+function tfBody(){
+  const k=T.k;
+  return k.items.map((it,i)=>{const lk=T.lk.has(i);let cls="tfrow";const show=T.done||lk;
+    if(lk||(T.done&&T.ans[i]===it.v))cls+=" ok";else if(T.reveal)cls+=" bad";else if(T.wrong&&T.wrong.has(i)&&T.ans[i]==null)cls+=" bad";
+    const a=T.reveal?it.v:T.ans[i];const dis=T.done||lk;
+    return `<div class="${cls}"><p>${esc(it.t)}</p><div class="tfb"><button class="${a===true?"sel":""}" data-act="tf" data-i="${i}" data-v="1" ${dis?"disabled":""}>▲ RICHTIG</button><button class="${a===false?"sel":""}" data-act="tf" data-i="${i}" data-v="0" ${dis?"disabled":""}>▼ FALSCH</button></div>${show?`<p class="why">${lk||T.ans[i]===it.v?"▲":"▼"} ${esc(it.why)}</p>`:""}</div>`;}).join("");
+}
+function gapBody(){
+  const k=T.k;let g=-1;
+  const txt=k.parts.map(p=>{if(typeof p==="string")return esc(p);g++;const gi=g,gd=T.gaps[gi];let cls="gapb";
+    const f=T.reveal&&!T.lk.has(gi)?p.c:T.fill[gi];
+    if(T.lk.has(gi)||(T.done&&!T.reveal))cls+=" ok";else if(T.reveal)cls+=" bad";else if(T.wr.has(gi)&&T.fill[gi]==null)cls+=" bad";
+    if(T.active===gi&&!T.done&&!T.lk.has(gi))cls+=" act";
+    return `<button class="${cls}" data-act="gap" data-g="${gi}" ${T.done||T.lk.has(gi)?"disabled":""} aria-label="Lücke ${gi+1}">${f!=null?esc(p.o[f]):"▢ ?"}</button>`;}).join("");
+  let opts="";
+  if(!T.done&&T.active!=null&&!T.lk.has(T.active)){const gd=T.gaps[T.active],p=k.parts[gd.pi];
+    opts=`<div class="gopts"><p class="lbl">LÜCKE ${T.active+1}: WÄHLE DAS PASSENDE WORT</p><div class="opts two">${gd.order.map(oi=>`<button class="opt ${T.fill[T.active]===oi?"sel":""}" data-act="gopt" data-o="${oi}">${esc(p.o[oi])}</button>`).join("")}</div></div>`;}
+  return `<div class="gaptext">${txt}</div>${opts}`;
+}
+
+/* ================= Argument-Baukasten ================= */
+function card(id){return T.k.cards.find(c=>c.id===id);}
+function posObj(){return T.k.positions.find(p=>p.id===T.pos);}
+function argueEval(){
+  const notes=[],proOk=[];
+  T.pro.forEach(id=>{const c=card(id);if(c.wrong){proOk.push(false);notes.push(`▼ „${c.t}“ – ${c.wrong}`);}else if(c.fits.includes(T.pos))proOk.push(true);else{proOk.push(false);notes.push(`▼ „${c.t}“ spricht nicht für deine Entscheidung.`);}});
+  const cc=card(T.con);const conOk=cc.against.includes(T.pos);
+  if(!conOk)notes.push(`▼ „${cc.t}“ ist kein Gegenargument zu deiner Entscheidung.`);
+  return{ok:proOk.every(Boolean)&&conOk,proOk,conOk,notes};
+}
+function reportText(){
+  const k=T.k,p=posObj(),c1=card(T.pro[0]).t,c2=card(T.pro[1]).t,cn=card(T.con).t;
+  if(k.style==="l8")return `Ich empfehle der Gläubigerversammlung ${p.label}. Dafür spricht vor allem: ${c1} Außerdem: ${c2} Zwar gilt: ${cn} Trotzdem halte ich diese Lösung insgesamt für die beste. Für die Beschäftigten bedeutet das: ${p.staff}`;
+  return `${p.text} Dafür spricht vor allem: ${c1} Außerdem: ${c2} Zwar gilt: ${cn} Trotzdem überwiegen für mich die genannten Gründe.`;
+}
+function pool(which){
+  const k=T.k,all=k.cards.map(c=>c.id);
+  if(which==="pro")return k.proPool==="all"?all:k.proPool;
+  return k.conPool==="rest"?all.filter(id=>!T.pro.includes(id)):k.conPool;
+}
+function cardBtn(id,sel,dis){const c=card(id);return `<button class="opt ${sel?"sel":""}" data-act="acard" data-id="${id}" ${dis?"disabled":""} aria-pressed="${sel}"><span>${esc(c.t)}</span></button>`;}
+function argueRender(){
+  const k=T.k;let body="",acts="";
+  const steps=`<p class="stagelbl">${["pos","pro","con","res"].map((s,i)=>`${T.step===s?"▶":""}${["1 ENTSCHEIDEN","2 ARGUMENTE","3 GEGENARGUMENT","4 BERICHT"][i]}`).join(" · ")}</p>`;
+  body+=steps;
+  if(T.step==="pos"){
+    body+=`<p class="sub" style="margin:0 0 10px">Es gibt keine richtige Entscheidung. Ein Urteil ist gut oder schlecht begründet.</p><div class="opts">${k.positions.map(p=>`<button class="opt ${T.pos===p.id?"sel":""}" data-act="apos" data-p="${p.id}" aria-pressed="${T.pos===p.id}"><span>${esc(p.label)}</span></button>`).join("")}</div>`;
+    acts=btn("anext","WEITER ▶",!T.pos);
+  }else if(T.step==="pro"){
+    if(!T.proOrder)T.proOrder=shuffle(pool("pro"));
+    body+=`<div class="recap">▲ Deine Entscheidung: ${esc(posObj().label)}</div><p class="count">WÄHLE 2 ARGUMENTE FÜR DEINE ENTSCHEIDUNG · AUSGEWÄHLT: ${T.pro.length}</p><div class="opts">${T.proOrder.map(id=>cardBtn(id,T.pro.includes(id),false)).join("")}</div>`;
+    acts=btn("anext","WEITER ▶",T.pro.length!==2)+btn("aback","ZURÜCK",false,"ghost");
+  }else if(T.step==="con"){
+    if(!T.conOrder)T.conOrder=shuffle(pool("con"));
+    body+=`<div class="recap">▲ Deine Entscheidung: ${esc(posObj().label)}</div><p class="count">WÄHLE 1 GEGENARGUMENT FÜR DEN SATZ „ZWAR …, ABER …“</p><div class="opts">${T.conOrder.map(id=>cardBtn(id,T.con===id,false)).join("")}</div>`;
+    acts=btn("aeval","BERICHT ERSTELLEN ▶",!T.con)+btn("aback","ZURÜCK",false,"ghost");
+  }else{
+    const ev=T.ev;
+    body+=`<div class="paper"><div class="faxhead">${k.style==="l8"?"BERICHT AN DIE GLÄUBIGERVERSAMMLUNG":"STELLUNGNAHME"}</div><p>${esc(reportText())}</p></div>
+    <div class="fb ${ev.ok?"up":"down"}"><h3>${ev.ok?"▲ GUT BEGRÜNDET":(T.done?"▼ ABGESCHLOSSEN – DAS PASST NOCH NICHT":"▼ KORREKTUR: DAS PASST NOCH NICHT")}</h3>
+    <p>${ev.proOk.every(Boolean)?"▲":"▼"} Zwei Gründe, die zu deiner Entscheidung passen</p><p>${ev.conOk?"▲":"▼"} Ein Gegenargument berücksichtigt</p>${k.style==="l8"?`<p>▲ Folgen für die Beschäftigten benannt</p>`:""}
+    ${ev.notes.map(n=>`<p>${esc(n)}</p>`).join("")}
+    ${ev.ok?`<p>${esc(k.explain)}</p>`:T.done?`<p>Passende Argumente für deine Entscheidung wären: ${esc(k.cards.filter(c=>c.fits.includes(T.pos)).map(c=>"„"+c.t+"“").join(", "))}. Ein passendes Gegenargument: ${esc(k.cards.filter(c=>c.against.includes(T.pos)).map(c=>"„"+c.t+"“").join(", "))}.</p>`:`<p>Du hast einen zweiten Versuch: Wähle andere Karten oder ändere deine Entscheidung.</p>`}
+    <p style="color:var(--muted)">Keine Entscheidung wird als besser bewertet – geprüft wird nur, ob deine Begründung zu deiner Entscheidung passt.</p></div>`;
+    if(T.done)acts=btn("next","WEITER ▶")+`<button class="btn" data-act="copy">KOPIEREN</button>`;
+    else acts=btn("argretry","KARTEN ÄNDERN")+btn("argpos","ENTSCHEIDUNG ÄNDERN",false,"");
+  }
+  return{body,acts};
+}
+function copyText(txt,b){
+  const done=()=>{b.textContent="✔ KOPIERT";};
+  const fallback=()=>{const ta=document.createElement("textarea");ta.value=txt;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.left="-9999px";document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length);try{document.execCommand("copy");done();}catch(e){b.textContent="BITTE MANUELL MARKIEREN";}document.body.removeChild(ta);};
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,fallback);}else fallback();}catch(e){fallback();}
+}
+
+/* ================= Abschlussbericht ================= */
+function renderReport(){
+  run=null;T=null;closeOv();document.body.classList.add("playing");renderHUD(false);
+  const lvRows=LEVELS.map(lv=>{const ts=tasksFor(lv),pts=ts.reduce((a,k)=>a+(S.done[k.id]||0),0),mx=ts.length*100;return `<tr><td>${lv.bonus?"★ Bonus":"Level "+lv.no}: ${esc(lv.sub)}</td><td>${lvDone(lv.id)?Math.round(pts/mx*100)+" %":"–"}</td><td>${money(pts)}</td></tr>`;}).join("");
+  const canRows=CAN.map((c,i)=>{const b=S.canBefore?S.canBefore[i]:"–",a=S.canAfter?S.canAfter[i]:"–";const sc=v=>v==="++"?2:v==="+"?1:0;const imp=S.canBefore&&S.canAfter&&sc(a)>sc(b);return `<tr><td>${esc(c)}</td><td>${b}</td><td>${a}</td><td>${imp?'<span class="tup">▲ besser</span>':""}</td></tr>`;}).join("");
+  const risk=S.risk.filter(id=>TASKMAP[id]).map(id=>{const m=TASKMAP[id];return `<tr><td>${m.lv.bonus?"★":"L"+m.lv.no}</td><td>${esc(m.k.q)}</td></tr>`;}).join("");
+  scr.innerHTML=`<div class="task"><div class="paper"><div class="faxhead">KAPITAL &amp; PARTNER ▪ ABSCHLUSSBERICHT</div>
+  <h3>BONITÄTS-RATING: ${rating()} · KAPITAL: ${money(capPts())}</h3><p>Lernpfad: ${S.path==="blue"?"Blau":"Grün"}</p></div>
+  <h2 class="h2" style="margin-top:20px">ERGEBNIS JE MANDAT</h2><div class="tablewrap"><table class="rep"><tr><th>MANDAT</th><th>ERGEBNIS</th><th>KAPITAL</th></tr>${lvRows}</table></div>
+  <h2 class="h2">ICH-KANN-LISTE: VORHER / NACHHER</h2><div class="tablewrap"><table class="rep"><tr><th>ICH KANN …</th><th>VORHER</th><th>NACHHER</th><th></th></tr>${canRows}</table></div>
+  <h2 class="h2">RISIKO-PORTFOLIO</h2>${risk?`<div class="tablewrap"><table class="rep"><tr><th>LEVEL</th><th>AUFGABE</th></tr>${risk}</table></div>`:`<p>Leer – keine offenen Aufgaben.</p>`}
+  <div class="rowbtns">${S.risk.length?`<button class="btn primary" data-act="risk">RISIKO-PORTFOLIO WIEDERHOLEN</button>`:""}<button class="btn" data-act="canagain">NACHHER-EINSCHÄTZUNG ÄNDERN</button><button class="btn ghost" data-act="map">ÜBERSICHT</button></div></div>`;
+  scr.scrollTop=0;
+}
+
+/* ================= Eingaben ================= */
+const ACT={
+  start(){resetState();renderPath();},
+  cont(){if(!S.canBefore){CANTMP=[];renderCan("before");}else renderMap();},
+  newgame(){openOv(`<h2 class="h2">NEUES SPIEL?</h2><p>Dein bisheriger Fortschritt wird gelöscht.</p><div class="menu"><button class="btn primary" data-act="yesnew">JA, NEU STARTEN</button><button class="btn ghost" data-act="closeov">ABBRECHEN</button></div>`);},
+  yesnew(){closeOv();resetState();renderPath();},
+  help(){showHelp();},
+  closeov(){closeOv();},
+  home(){renderStart();},
+  pathpick(d){S.path=d.p;save();if(!S.canBefore){CANTMP=[];renderCan("before");}else renderMap();},
+  switchpath(){showSwitchPath();},
+  dopath(d){S.path=d.p;save();closeOv();if(T){renderHUD(true);rerender();}else if(run){renderHUD(true);}else renderMap();},
+  can(d){CANTMP[+d.n]=d.v;const st=scr.scrollTop;renderCan(CANPH);scr.scrollTop=st;},
+  cansave(){if(!CANTMP.every(x=>x))return;if(CANPH==="before")S.canBefore=CANTMP.slice();else S.canAfter=CANTMP.slice();CANTMP=[];save();if(CANPH==="before")renderMap();else renderReport();},
+  canagain(){CANTMP=S.canAfter?S.canAfter.slice():[];renderCan("after");},
+  map(){closeOv();renderMap();},
+  level(d){closeOv();startLevel(d.id);},
+  begin(){loadTask();},
+  akte(){showAkte();},
+  tipp(){showTip();},
+  pause(){showPause();},
+  risk(){closeOv();startRisk();},
+  report(){if(!S.canAfter){CANTMP=[];renderCan("after");}else renderReport();},
+  check(){doCheck();},
+  next(){run.i++;loadTask();},
+  stage(){T.si++;rerender();},
+  pick(d){const C=T.st[T.si];if(C.done||C.dis.has(+d.i))return;C.sel=+d.i;C.fb=null;rerender();},
+  mpick(d){const i=+d.i;if(T.done||T.okL.has(i)||T.badL.has(i))return;if(T.sel.has(i))T.sel.delete(i);else if(T.sel.size<T.k.need)T.sel.add(i);T.fb=null;rerender();},
+  item(d){const i=+d.i;if(T.done||T.lk.has(i))return;T.cur=i;rerender();},
+  cat(d){if(T.done||T.cur==null)return;const c=+d.c;T.as[T.cur]=c;T.wr.delete(T.cur);T.fb=null;
+    const open=T.items.filter(i=>T.as[i]==null&&!T.lk.has(i));const pos=T.items.indexOf(T.cur);
+    const nxt=open.find(i=>T.items.indexOf(i)>pos)??open[0];T.cur=nxt===undefined?null:nxt;rerender();},
+  card(d){const ci=+d.i;if(T.done)return;const s=T.slots.indexOf(ci);
+    if(s>=0){if(T.lk.has(s))return;T.slots[s]=null;}else{const e=T.slots.indexOf(null);if(e<0)return;T.slots[e]=ci;}T.fb=null;rerender();},
+  oreset(){T.slots=T.slots.map((c,s)=>T.lk.has(s)?c:null);rerender();},
+  tf(d){const i=+d.i;if(T.done||T.lk.has(i))return;T.ans[i]=d.v==="1";T.fb=null;rerender();},
+  gap(d){const g=+d.g;if(T.done||T.lk.has(g))return;T.active=g;rerender();},
+  gopt(d){if(T.done||T.active==null)return;T.fill[T.active]=+d.o;T.wr.delete(T.active);T.fb=null;
+    const open=T.gaps.map((_,gi)=>gi).filter(gi=>T.fill[gi]==null&&!T.lk.has(gi));T.active=open.length?open[0]:T.active;rerender();},
+  apos(d){if(T.done)return;T.pos=d.p;rerender();},
+  acard(d){if(T.done)return;const id=d.id;
+    if(T.step==="pro"){if(T.pro.includes(id))T.pro=T.pro.filter(x=>x!==id);else if(T.pro.length<2)T.pro.push(id);}
+    else if(T.step==="con"){T.con=T.con===id?null:id;}rerender();},
+  anext(){if(T.step==="pos"&&T.pos){T.step="pro";T.proOrder=null;}else if(T.step==="pro"&&T.pro.length===2){T.step="con";T.conOrder=null;T.con=null;}renderTask();scr.scrollTop=0;},
+  aback(){if(T.step==="pro")T.step="pos";else if(T.step==="con"){T.step="pro";}renderTask();scr.scrollTop=0;},
+  aeval(){if(!T.con)return;T.ev=argueEval();T.step="res";
+    if(T.ev.ok)finalize(T.attempt===1?100:60,false);else if(T.attempt>=2)finalize(20,true);
+    renderTask();scr.scrollTop=0;},
+  argretry(){T.attempt=2;T.step="pro";T.pro=[];T.con=null;T.proOrder=null;T.ev=null;renderTask();scr.scrollTop=0;},
+  argpos(){T.attempt=2;T.step="pos";T.pro=[];T.con=null;T.proOrder=null;T.ev=null;renderTask();scr.scrollTop=0;},
+  copy(d,b){copyText(reportText(),b);}
+};
+const GUARD=new Set(["check","next","stage","begin","level","start","cont","yesnew","map","aeval","anext","aback","argretry","argpos","cansave","risk","report","pathpick","dopath","home"]);
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b||b.disabled)return;
+  const a=b.dataset.act;if(!ACT[a])return;
+  if(GUARD.has(a)){if(busy)return;lock();}
+  ACT[a](b.dataset,b);
+});
+document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
+
+/* ================= Start ================= */
+load();renderStart();
+</script>
+</body>
+</html>
